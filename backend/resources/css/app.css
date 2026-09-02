@@ -1,0 +1,41 @@
+@import 'tailwindcss';
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@theme {
+    --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-heading: 'Outfit', ui-sans-serif, sans-serif;
+    --color-brand-50: #eff6ff;
+    --color-brand-100: #dbeafe;
+    --color-brand-200: #bfdbfe;
+    --color-brand-300: #93c5fd;
+    --color-brand-400: #3b93ff;
+    --color-brand-500: #006cfb;
+    --color-brand-600: #0058d4;
+    --color-brand-700: #0047ad;
+    --color-brand-800: #003a8c;
+    --color-brand-900: #002d6d;
+}
+
+@layer base {
+    body {
+        background-color: #f8fbff;
+        color: #172033;
+        font-family: var(--font-sans);
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+        font-family: var(--font-heading);
+    }
+
+    ::selection {
+        background-color: var(--color-brand-100);
+        color: var(--color-brand-900);
+    }
+}

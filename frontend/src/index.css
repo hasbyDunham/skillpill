@@ -1,0 +1,132 @@
+@import "tailwindcss";
+
+/* Dark mode is driven by the app's `.dark` class, not OS preference. */
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", sans-serif;
+  --font-serif: "Playfair Display", serif;
+  --font-heading: "Outfit", sans-serif;
+  --font-mono: "Plus Jakarta Sans", sans-serif;
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #3b93ff;
+  --color-brand-500: #006cfb;
+  --color-brand-600: #0058d4;
+  --color-brand-700: #0047ad;
+  --color-brand-800: #003a8c;
+  --color-brand-900: #002d6d;
+  --color-brand-950: #001a40;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: #f8fbff;
+  color: #172033;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  overflow-x: clip;
+}
+
+img,
+video,
+canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+button,
+input,
+select,
+textarea {
+  min-width: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+/* One horizontal rhythm for the header, every landing section, and footer. */
+.page-container {
+  width: 100%;
+  max-width: 112.5rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
+@media (max-width: 39.999rem) {
+  .page-container {
+    padding-inline: 0.75rem;
+  }
+}
+
+@media (min-width: 40rem) {
+  .page-container {
+    padding-inline: 2rem;
+  }
+}
+
+@media (min-width: 64rem) {
+  .page-container {
+    padding-inline: 3rem;
+  }
+}
+
+/* Keep the brand readable on the navy surfaces used by dark mode. */
+.dark .text-brand-500,
+.dark .text-brand-600,
+.dark .text-brand-700,
+.dark .text-brand-800,
+.dark .text-brand-900 {
+  color: #93c5fd;
+}
+
+.dark .bg-brand-50,
+.dark .bg-brand-100 {
+  background-color: rgb(0 108 251 / 0.16);
+}
+
+.dark .border-brand-100,
+.dark .border-brand-200 {
+  border-color: rgb(147 197 253 / 0.35);
+}
+
+.dark :is(.bg-brand-400, .bg-brand-500, .bg-brand-600) {
+  color: #fff;
+}
+
+/* Custom smooth scrollbars and premium animations */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #e4e4e7;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #d4d4d8;
+}
+
+/* Hide scrollbars for clean custom scrollable sidebar and elements */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

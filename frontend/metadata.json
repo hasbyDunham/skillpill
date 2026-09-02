@@ -1,0 +1,8 @@
+{
+  "name": "Remix: NEW 3 SkillPill",
+  "description": "A Global Micro Skill Commerce Platform. Buy, learn, and master single actionable micro skills in under 30 minutes with beautiful, interactive learning journeys.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
