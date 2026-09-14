@@ -182,3 +182,22 @@
   }
 }
 
+@media (max-width: 39.999rem) {
+  html,
+  body,
+  #root {
+    min-width: 0;
+    overflow-x: clip;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  [role="dialog"] {
+    max-width: calc(100vw - 1.5rem);
+  }
+}
+

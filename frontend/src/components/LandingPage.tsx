@@ -10,17 +10,19 @@ import {
   Sparkles, CheckCircle2, MessageSquare, ShieldCheck, Zap, Laptop, FileText,
   Bot, Layers, FileSpreadsheet, UserCheck, HeartHandshake, AlertCircle
 } from 'lucide-react';
-import { SkillPill, UserProfile } from '../types';
+import { SkillPill, UserProfile, UserProgress } from '../types';
 import { Language } from '../lib/translations';
-import { getSkillCover } from '../lib/skillImage';
 import { formatRupiah, localizeCategory, localizeDifficulty, localizeDuration } from '../lib/localization';
+import { apiFetch } from '../lib/api';
+import { getSkillCover } from '../lib/skillImage';
 
 interface LandingPageProps {
   skill: SkillPill;
   onBack: () => void;
-  onPurchase: (skillId: string, paymentMethod: string, couponCode?: string) => Promise<void>;
+  onPurchase: (skillId: string) => Promise<void>;
   ownedSkills: string[];
-  onStartLearning: (skill: SkillPill) => void;
+  progress?: UserProgress;
+  onStartLearning: (skill: SkillPill, mode?: 'start' | 'resume' | 'restart') => void;
   relatedSkills: SkillPill[];
   onSelectRelated: (skill: SkillPill) => void;
   darkMode?: boolean;
@@ -28,6 +30,7 @@ interface LandingPageProps {
   lang?: Language;
   onOpenAuth?: (mode?: 'login' | 'register') => void;
   onOpenFeedback?: (toolName?: string) => void;
+  onUpgradePlan?: () => void;
 }
 
 export default function LandingPage({ 
@@ -35,6 +38,7 @@ export default function LandingPage({
   onBack, 
   onPurchase, 
   ownedSkills, 
+  progress,
   onStartLearning, 
   relatedSkills, 
   onSelectRelated, 
@@ -42,24 +46,67 @@ export default function LandingPage({
   profile, 
   lang = 'ID',
   onOpenAuth,
-  onOpenFeedback
+  onOpenFeedback,
+  onUpgradePlan
 }: LandingPageProps) {
   const [showCheckout, setShowCheckout] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('QRIS / E-Wallet');
-  const [couponCode, setCouponCode] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isCouponApplied, setIsCouponApplied] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [skillReviews, setSkillReviews] = useState<Array<{
+    id: number | string;
+    userName: string;
+    rating: number;
+    review: string;
+    createdAt?: string;
+  }>>([]);
 
+  React.useEffect(() => {
+    let isMounted = true;
+    async function loadReviews() {
+      try {
+        const res = await apiFetch(`/api/skills/${skill.id}/reviews`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && isMounted) {
+            setSkillReviews(data);
+          }
+        }
+      } catch (e) {
+        // silent
+      }
+    }
+    loadReviews();
+    return () => { isMounted = false; };
+  }, [skill.id]);
+
+  const isID = lang === 'ID';
   const isOwned = ownedSkills.includes(skill.id);
-  const finalPrice = isCouponApplied ? 0.00 : skill.price;
+  const completedLessonCount = (progress?.completedLessons || []).filter((lessonId) => skill.lessons.some((lesson) => lesson.id === lessonId)).length;
+  const isSkillCompleted = Boolean(progress?.isCompleted);
+  const learningProgress = isSkillCompleted ? 100 : (skill.lessons.length ? Math.round((completedLessonCount / skill.lessons.length) * 100) : 0);
+  const learningMode = isSkillCompleted ? 'restart' : learningProgress > 0 ? 'resume' : 'start';
+  const totalLearningSeconds = progress?.learningSeconds || 0;
+  const totalLearningTime = totalLearningSeconds >= 3600
+    ? `${Math.floor(totalLearningSeconds / 3600)} ${isID ? 'jam' : 'hours'} ${Math.floor((totalLearningSeconds % 3600) / 60)} ${isID ? 'menit' : 'minutes'}`
+    : `${Math.floor(totalLearningSeconds / 60)} ${isID ? 'menit' : 'minutes'} ${totalLearningSeconds % 60} ${isID ? 'detik' : 'seconds'}`;
+  const learningActionLabel = isSkillCompleted
+    ? (lang === 'ID' ? 'Pelajari Lagi' : 'Learn Again')
+    : learningProgress > 0
+      ? (lang === 'ID' ? 'Lanjutkan Belajar' : 'Continue Learning')
+      : (lang === 'ID' ? 'Mulai Belajar' : 'Start Learning');
+  const requiresProUpgrade = Boolean(profile) && skill.accessLevel === 'pro' && profile?.plan !== 'pro';
+  const reviewCount = skillReviews.length;
+  const averageRating = reviewCount > 0
+    ? skillReviews.reduce((total, item) => total + item.rating, 0) / reviewCount
+    : 0;
 
-  const handleApplyCoupon = () => {
-    if (couponCode.toUpperCase() === 'PILLFREE') {
-      setIsCouponApplied(true);
-      setErrorMsg('');
+  const requestPurchase = () => {
+    if (!profile) {
+      onOpenAuth?.('login');
+    } else if (requiresProUpgrade) {
+      onUpgradePlan?.();
     } else {
-      setErrorMsg(lang === 'ID' ? 'Kupon tidak valid. Gunakan "PILLFREE" untuk gratis.' : 'Invalid coupon. Try "PILLFREE" for free checkout.');
+      setShowCheckout(true);
     }
   };
 
@@ -67,7 +114,7 @@ export default function LandingPage({
     e.preventDefault();
     setIsProcessing(true);
     try {
-      await onPurchase(skill.id, `${paymentMethod} (Simulated)`, isCouponApplied ? 'PILLFREE' : undefined);
+      await onPurchase(skill.id);
       setShowCheckout(false);
     } catch (err: any) {
       setErrorMsg(err.message || (lang === 'ID' ? 'Gagal memproses transaksi.' : 'Failed to process purchase'));
@@ -75,8 +122,6 @@ export default function LandingPage({
       setIsProcessing(false);
     }
   };
-
-  const isID = lang === 'ID';
 
   return (
     <div className={`min-h-screen transition-colors duration-200 ${darkMode ? 'bg-stone-950 text-stone-100' : 'bg-[#fcfbf9] text-stone-900'} pb-24`}>
@@ -89,7 +134,7 @@ export default function LandingPage({
             className="inline-flex items-center space-x-2 text-stone-600 dark:text-stone-300 hover:text-brand-500 font-bold text-xs py-2 transition-colors cursor-pointer"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">{isID ? 'Kembali ke Katalog' : 'Back to Directory'}</span>
+            <span className="hidden sm:inline">{isOwned ? (isID ? 'Kembali ke Skill Saya' : 'Back to My Skills') : (isID ? 'Kembali ke Katalog' : 'Back to Directory')}</span>
           </button>
           
           <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
@@ -112,25 +157,19 @@ export default function LandingPage({
             {/* Quick Action Button Header */}
             {isOwned ? (
               <button
-                onClick={() => onStartLearning(skill)}
+                onClick={() => onStartLearning(skill, learningMode)}
                 className="px-2.5 sm:px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] sm:text-xs rounded-xl shadow transition-all flex items-center space-x-1.5 cursor-pointer"
               >
                 <Play className="h-3.5 w-3.5 fill-current" />
-                <span>{isID ? 'Mulai Belajar' : 'Start Learning'}</span>
+                <span>{learningActionLabel}</span>
               </button>
             ) : (
               <button
-                onClick={() => {
-                  if (!profile) {
-                    if (onOpenAuth) onOpenAuth('login');
-                  } else {
-                    setShowCheckout(true);
-                  }
-                }}
+                onClick={requestPurchase}
                 className="px-2.5 sm:px-4 py-1.5 bg-brand-500 hover:bg-brand-600 text-white font-bold text-[11px] sm:text-xs rounded-xl shadow transition-all flex items-center space-x-1.5 cursor-pointer"
               >
-                <span className="sm:hidden">{isID ? 'Beli' : 'Buy'}</span>
-                <span className="hidden sm:inline">{isID ? 'Beli Solusi' : 'Get Solution'} ({formatRupiah(skill.price)})</span>
+                <span className="sm:hidden">{requiresProUpgrade ? 'Pro' : (isID ? 'Beli' : 'Buy')}</span>
+                <span className="hidden sm:inline">{requiresProUpgrade ? (isID ? 'Upgrade ke Pro dahulu' : 'Upgrade to Pro first') : `${isID ? 'Beli Solusi' : 'Get Solution'} (${formatRupiah(skill.price)})`}</span>
                 <ArrowRight className="hidden sm:block h-3.5 w-3.5" />
               </button>
             )}
@@ -167,18 +206,18 @@ export default function LandingPage({
 
             {/* Subtitle / Short Description */}
             <p className="text-base sm:text-lg text-stone-600 dark:text-stone-300 leading-relaxed font-sans font-light">
-              {skill.shortDescription}
+              {skill.overview.headline}
             </p>
 
             {/* Author Credit & Ratings */}
             <div className="flex flex-wrap items-center gap-4 text-xs pt-1 border-t border-b border-stone-200 dark:border-stone-800/80 py-3">
               <div className="flex items-center space-x-2">
                 <div className="h-8 w-8 rounded-full bg-brand-500/20 text-brand-600 dark:text-brand-400 font-bold flex items-center justify-center text-xs">
-                  {skill.author.charAt(0)}
+                  {skill.overview.author.charAt(0)}
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-wider font-extrabold text-stone-400">{isID ? 'Disusun Oleh' : 'Authored By'}</p>
-                  <p className="font-bold text-stone-900 dark:text-white">{skill.author}</p>
+                  <p className="font-bold text-stone-900 dark:text-white">{skill.overview.author}</p>
                 </div>
               </div>
 
@@ -186,15 +225,24 @@ export default function LandingPage({
 
               <div className="flex items-center space-x-2">
                 <div className="flex items-center space-x-0.5 text-brand-500">
-                  <Star className="h-4 w-4 fill-brand-400" />
-                  <Star className="h-4 w-4 fill-brand-400" />
-                  <Star className="h-4 w-4 fill-brand-400" />
-                  <Star className="h-4 w-4 fill-brand-400" />
-                  <Star className="h-4 w-4 fill-brand-400" />
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className={`h-4 w-4 ${
+                        averageRating >= star
+                          ? "fill-brand-400"
+                          : "text-stone-300 dark:text-stone-700"
+                      }`}
+                    />
+                  ))}
                 </div>
                 <div>
-                  <span className="font-extrabold text-stone-900 dark:text-white">5.0 / 5.0</span>
-                  <span className="text-[10px] text-stone-500 dark:text-stone-400 ml-1">(120+ {isID ? 'ulasan' : 'reviews'})</span>
+                  <span className="font-extrabold text-stone-900 dark:text-white">
+                    {reviewCount > 0 ? `${averageRating.toFixed(1)} / 5.0` : "— / 5.0"}
+                  </span>
+                  <span className="text-[10px] text-stone-500 dark:text-stone-400 ml-1">
+                    ({reviewCount} {isID ? 'ulasan' : 'reviews'})
+                  </span>
                 </div>
               </div>
             </div>
@@ -206,7 +254,7 @@ export default function LandingPage({
                   <Clock className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-stone-400 font-bold">{isID ? 'Durasi' : 'Duration'}</p>
+                  <p className="text-[9px] uppercase tracking-wider text-stone-400 font-bold">{isID ? 'Estimasi Waktu Belajar' : 'Estimated Learning Time'}</p>
                   <p className="text-xs font-bold text-stone-900 dark:text-white">{localizeDuration(skill.estimatedTime, lang)}</p>
                 </div>
               </div>
@@ -257,33 +305,41 @@ export default function LandingPage({
                 </div>
                 <div>
                   <p className="text-[9px] uppercase tracking-wider text-stone-400 font-bold">{isID ? 'Materi' : 'Content'}</p>
-                  <p className="text-xs font-bold text-stone-900 dark:text-white">{skill.curriculum.length} {isID ? 'Modul Bab' : 'Modules'}</p>
+                  <p className="text-xs font-bold text-stone-900 dark:text-white">{skill.lessons.length} {isID ? 'Pelajaran' : 'Lessons'}</p>
                 </div>
               </div>
             </div>
+
+            {isOwned && (
+              <div className={`rounded-2xl border p-4 ${darkMode ? 'border-emerald-500/20 bg-emerald-500/10' : 'border-emerald-500/20 bg-emerald-50/70'}`}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-600">{isSkillCompleted ? (isID ? 'Skill telah selesai' : 'Skill completed') : (isID ? 'Progress pembelajaran' : 'Learning progress')}</p>
+                    <p className="mt-1 text-sm font-bold text-stone-900 dark:text-white">{learningProgress}% · {completedLessonCount}/{skill.lessons.length} {isID ? 'pelajaran selesai' : 'lessons completed'}</p>
+                  </div>
+                  {progress?.lastStudiedAt && !isSkillCompleted && <p className="text-xs text-stone-500 dark:text-stone-400">{isID ? 'Terakhir dipelajari' : 'Last studied'}: {new Date(progress.lastStudiedAt).toLocaleDateString(isID ? 'id-ID' : 'en-US')}</p>}
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-emerald-500/15"><div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${learningProgress}%` }} /></div>
+                {isSkillCompleted && <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone-600 dark:text-stone-300"><span>{isID ? 'Waktu belajar' : 'Learning time'}: {totalLearningTime}</span><span>{progress?.xpEarned || 0} XP</span></div>}
+              </div>
+            )}
 
             {/* ACTION CTA BLOCK */}
             <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
               {isOwned ? (
                 <button 
-                  onClick={() => onStartLearning(skill)}
+                  onClick={() => onStartLearning(skill, learningMode)}
                   className="px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm rounded-2xl shadow-xl shadow-emerald-600/20 transition-all flex items-center justify-center space-x-2.5 cursor-pointer active:scale-95"
                 >
                   <Play className="h-5 w-5 fill-current" />
-                  <span>{isID ? 'Mulai Pembelajaran (Milik Anda)' : 'Start Learning (Owned)'}</span>
+                  <span>{learningActionLabel}</span>
                 </button>
               ) : (
                 <button 
-                  onClick={() => {
-                    if (!profile) {
-                      if (onOpenAuth) onOpenAuth('login');
-                    } else {
-                      setShowCheckout(true);
-                    }
-                  }}
+                  onClick={requestPurchase}
                   className="px-8 py-4 bg-brand-500 hover:bg-brand-600 text-white font-extrabold text-sm rounded-2xl shadow-xl shadow-brand-500/20 transition-all flex items-center justify-center space-x-2.5 cursor-pointer active:scale-95"
                 >
-                  <span>{isID ? `Buka Solusi Praktis (${formatRupiah(skill.price)})` : `Unlock Solution (${formatRupiah(skill.price)})`}</span>
+                  <span>{requiresProUpgrade ? (isID ? 'Upgrade ke Pro untuk membeli Skill ini' : 'Upgrade to Pro to buy this Skill') : (isID ? `Buka Solusi Praktis (${formatRupiah(skill.price)})` : `Unlock Solution (${formatRupiah(skill.price)})`)}</span>
                   <ArrowRight className="h-5 w-5" />
                 </button>
               )}
@@ -361,7 +417,7 @@ export default function LandingPage({
                 </div>
               </div>
               <p className="text-xs sm:text-sm text-red-950 dark:text-red-200 leading-relaxed font-medium italic">
-                "{skill.problem}"
+                "{skill.overview.problem}"
               </p>
               <div className="pt-2 border-t border-red-200 dark:border-red-900/40 text-[11px] text-red-700 dark:text-red-300 flex items-center space-x-2 font-medium">
                 <span>⚠️ {isID ? 'Menyebabkan pemborosan waktu dan eksekusi yang kurang maksimal.' : 'Causes wasted time and suboptimal execution.'}</span>
@@ -380,7 +436,7 @@ export default function LandingPage({
                 </div>
               </div>
               <p className="text-xs sm:text-sm text-emerald-950 dark:text-emerald-200 leading-relaxed font-medium italic">
-                "{skill.transformation}"
+                "{skill.overview.transformation}"
               </p>
               <div className="pt-2 border-t border-emerald-200 dark:border-emerald-900/40 text-[11px] text-emerald-700 dark:text-emerald-300 flex items-center space-x-2 font-medium">
                 <span>🚀 {isID ? 'Siap diaplikasikan secara instan dalam skenario kerja nyata.' : 'Ready for instant application in real scenarios.'}</span>
@@ -403,7 +459,7 @@ export default function LandingPage({
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
-          {skill.whyLearnThis.map((benefit, idx) => (
+          {skill.overview.benefits.map((benefit, idx) => (
             <div 
               key={idx} 
               className={`p-3 sm:p-6 rounded-2xl border transition-all duration-300 flex flex-col justify-between ${
@@ -439,7 +495,7 @@ export default function LandingPage({
           </div>
 
           <div className="space-y-4">
-            {skill.curriculum.map((curr, idx) => (
+            {skill.lessons.map((curr, idx) => (
               <div 
                 key={curr.id} 
                 className={`p-5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
@@ -463,7 +519,7 @@ export default function LandingPage({
                 <div className="flex items-center space-x-3 self-end sm:self-auto">
                   <span className="inline-flex items-center space-x-1 text-xs font-semibold px-3 py-1 rounded-xl bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300">
                     <Clock className="h-3.5 w-3.5 text-brand-500" />
-                    <span>{localizeDuration(curr.duration, lang)}</span>
+                    <span>{isID ? 'Estimasi waktu belajar: ' : 'Estimated learning time: '}{localizeDuration(skill.estimatedTime, lang)}</span>
                   </span>
                 </div>
               </div>
@@ -539,7 +595,7 @@ export default function LandingPage({
               {isID ? 'Didasarkan Pada Metodologi & Framework Teruji' : 'Grounded in Proven Frameworks & Methodology'}
             </h3>
             <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed">
-              {skill.evidence}
+              {skill.overview.evidence}
             </p>
           </div>
         </div>
@@ -556,18 +612,33 @@ export default function LandingPage({
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-            {skill.testimonials.map((test, idx) => (
+            {(skillReviews.length > 0
+              ? skillReviews.map((r) => ({
+                  name: r.userName,
+                  role: isID ? 'Pembelajar Terverifikasi' : 'Verified Learner',
+                  quote: r.review,
+                  rating: r.rating || 5,
+                  date: r.createdAt ? new Date(r.createdAt).toLocaleDateString(isID ? 'id-ID' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
+                }))
+              : skill.overview.testimonials.map((test) => ({
+                  name: test.name,
+                  role: test.role,
+                  quote: test.quote,
+                  rating: test.rating || 5,
+                  date: '',
+                }))
+            ).map((test, idx) => (
               <div 
                 key={idx} 
-                className={`p-3 sm:p-8 rounded-2xl sm:rounded-3xl border relative flex flex-col justify-between ${
-                  darkMode ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200 shadow-sm'
+                className={`p-4 sm:p-6 rounded-2xl sm:rounded-3xl border relative flex flex-col justify-between ${
+                  darkMode ? 'bg-stone-900 border-stone-800 text-white' : 'bg-white border-stone-200 shadow-sm text-stone-900'
                 }`}
               >
-                <Quote className="h-8 w-8 text-brand-500/20 absolute top-6 right-6" />
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-1 text-brand-500">
+                <Quote className="h-8 w-8 text-brand-500/15 absolute top-5 right-5 pointer-events-none" />
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-1 text-amber-400">
                     {Array.from({ length: test.rating }).map((_, i) => (
-                      <Star key={i} className="h-4 w-4 fill-brand-400" />
+                      <Star key={i} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
                     ))}
                   </div>
                   <p className="text-xs sm:text-sm text-stone-700 dark:text-stone-300 italic leading-relaxed">
@@ -575,14 +646,19 @@ export default function LandingPage({
                   </p>
                 </div>
                 
-                <div className="mt-6 pt-4 border-t border-stone-100 dark:border-stone-800/80 flex items-center space-x-3">
-                  <div className="h-9 w-9 rounded-full bg-brand-500/20 text-brand-500 font-bold flex items-center justify-center text-xs">
-                    {test.name.charAt(0)}
+                <div className="mt-5 pt-4 border-t border-stone-100 dark:border-stone-800/80 flex items-center justify-between">
+                  <div className="flex items-center space-x-2.5 overflow-hidden">
+                    <div className="h-8 w-8 rounded-full bg-brand-500/10 text-brand-500 font-extrabold flex items-center justify-center text-xs flex-shrink-0 border border-brand-500/30">
+                      {test.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="overflow-hidden">
+                      <h4 className="text-xs font-bold text-stone-900 dark:text-white truncate">{test.name}</h4>
+                      <p className="text-[10px] text-stone-500 dark:text-stone-400 truncate">{test.role}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-stone-900 dark:text-white">{test.name}</h4>
-                    <p className="text-[10px] text-stone-500 dark:text-stone-400">{test.role}</p>
-                  </div>
+                  {test.date && (
+                    <span className="text-[9px] text-stone-400 font-mono flex-shrink-0 ml-1">{test.date}</span>
+                  )}
                 </div>
               </div>
             ))}
@@ -600,7 +676,7 @@ export default function LandingPage({
         </div>
 
         <div className="space-y-4">
-          {skill.faq.map((item, idx) => (
+          {skill.overview.faq.map((item, idx) => (
             <div 
               key={idx} 
               className={`p-5 rounded-2xl border ${darkMode ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200 shadow-sm'}`}
@@ -663,28 +739,22 @@ export default function LandingPage({
             <div className="pt-4 flex flex-col sm:flex-row justify-center items-center gap-4">
               {isOwned ? (
                 <button 
-                  onClick={() => onStartLearning(skill)}
+                  onClick={() => onStartLearning(skill, learningMode)}
                   className="px-8 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all flex items-center space-x-2 cursor-pointer shadow-lg"
                 >
                   <Play className="h-4 w-4 fill-current" />
-                  <span>{isID ? 'Mulai Belajar (Milik Anda)' : 'Start Learning (Owned)'}</span>
+                  <span>{learningActionLabel}</span>
                 </button>
               ) : (
                 <button 
-                  onClick={() => {
-                    if (!profile) {
-                      if (onOpenAuth) onOpenAuth('login');
-                    } else {
-                      setShowCheckout(true);
-                    }
-                  }}
+                  onClick={requestPurchase}
                   className="px-8 py-3.5 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl text-xs transition-all shadow-lg cursor-pointer"
                 >
-                  {isID ? `Buka SkillPill (${formatRupiah(skill.price)})` : `Unlock SkillPill (${formatRupiah(skill.price)})`}
+                  {requiresProUpgrade ? (isID ? 'Upgrade ke Pro untuk membeli Skill ini' : 'Upgrade to Pro to buy this Skill') : (isID ? `Buka SkillPill (${formatRupiah(skill.price)})` : `Unlock SkillPill (${formatRupiah(skill.price)})`)}
                 </button>
               )}
               <button onClick={onBack} className="text-stone-400 hover:text-white text-xs font-semibold cursor-pointer">
-                {isID ? 'Kembali ke Katalog' : 'Back to Directory'}
+                {isOwned ? (isID ? 'Kembali ke Skill Saya' : 'Back to My Skills') : (isID ? 'Kembali ke Katalog' : 'Back to Directory')}
               </button>
             </div>
           </div>
@@ -717,7 +787,7 @@ export default function LandingPage({
                 />
                 <div className="flex-grow min-w-0">
                   <h4 className="text-xs font-bold text-stone-900 dark:text-white group-hover:text-brand-500 transition-colors line-clamp-1">{rel.title}</h4>
-                  <p className="text-[10px] text-stone-500 dark:text-stone-400 line-clamp-1 mt-0.5">{rel.shortDescription}</p>
+                  <p className="text-[10px] text-stone-500 dark:text-stone-400 line-clamp-1 mt-0.5">{rel.overview.headline}</p>
                   <span className="text-[10px] font-extrabold text-brand-500 mt-1 block">{formatRupiah(rel.price)}</span>
                 </div>
               </div>
@@ -753,60 +823,10 @@ export default function LandingPage({
                 </div>
               </div>
 
-              {/* Payment Methods */}
-              <div className="space-y-1.5">
-                <label className="block text-[9px] font-extrabold uppercase tracking-widest text-stone-500 dark:text-stone-400">
-                  {isID ? 'Metode Pembayaran' : 'Payment Gateway'}
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('QRIS / E-Wallet')}
-                    className={`p-3 text-xs font-bold rounded-xl border text-center transition-all cursor-pointer ${paymentMethod === 'QRIS / E-Wallet' ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/40 text-brand-800 dark:text-brand-300' : 'border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800'}`}
-                  >
-                    QRIS / E-Wallet
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('Credit Card')}
-                    className={`p-3 text-xs font-bold rounded-xl border text-center transition-all cursor-pointer ${paymentMethod === 'Credit Card' ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/40 text-brand-800 dark:text-brand-300' : 'border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800'}`}
-                  >
-                    {isID ? 'Kartu Kredit' : 'Credit Card'}
-                  </button>
-                </div>
+              <div className="rounded-2xl border border-brand-500/20 bg-brand-50/60 p-3 text-xs leading-5 text-brand-800 dark:bg-brand-950/30 dark:text-brand-200">
+                {isID ? 'Pilih metode pembayaran Anda dengan aman pada halaman pembayaran berikutnya.' : 'Choose your preferred payment method securely on the next payment page.'}
               </div>
-
-              {/* Coupon Codes */}
-              <div className="space-y-1.5">
-                <label className="block text-[9px] font-extrabold uppercase tracking-widest text-stone-500 dark:text-stone-400">
-                  {isID ? 'Kode Promo / Kupon' : 'Promo Code'}
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value)}
-                    placeholder={isID ? 'contoh: PILLFREE' : 'e.g. PILLFREE'}
-                    className="flex-grow px-3 py-2 border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 rounded-xl text-xs uppercase"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleApplyCoupon}
-                    className="px-3 py-2 bg-stone-900 dark:bg-stone-700 text-white rounded-xl text-xs font-bold hover:bg-stone-800 cursor-pointer"
-                  >
-                    {isID ? 'Gunakan' : 'Apply'}
-                  </button>
-                </div>
-                {isCouponApplied && (
-                  <p className="text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold flex items-center gap-1">
-                    <Check className="h-3 w-3" />
-                    <span>{isID ? 'Kupon PILLFREE aktif! Harga Rp0.' : 'PILLFREE coupon applied! Price is Rp0.'}</span>
-                  </p>
-                )}
-                {errorMsg && (
-                  <p className="text-red-500 text-[10px] font-semibold">{errorMsg}</p>
-                )}
-              </div>
+              {errorMsg && <p className="text-red-500 text-[10px] font-semibold">{errorMsg}</p>}
 
               {/* Pricing breakdown */}
               <div className="border-t border-stone-200 dark:border-stone-800 pt-3 space-y-1 text-xs">
@@ -814,15 +834,9 @@ export default function LandingPage({
                   <span>{isID ? 'Subtotal' : 'Subtotal'}</span>
                   <span>{formatRupiah(skill.price)}</span>
                 </div>
-                {isCouponApplied && (
-                  <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold">
-                    <span>{isID ? 'Diskon (PILLFREE)' : 'Discount (PILLFREE)'}</span>
-                    <span>-{formatRupiah(skill.price)}</span>
-                  </div>
-                )}
                 <div className="flex justify-between font-extrabold text-stone-900 dark:text-white border-t border-stone-100 dark:border-stone-800 pt-2 text-sm">
                   <span>{isID ? 'Total' : 'Total'}</span>
-                  <span>{formatRupiah(finalPrice)}</span>
+                  <span>{formatRupiah(skill.price)}</span>
                 </div>
               </div>
 
@@ -840,7 +854,7 @@ export default function LandingPage({
                 ) : (
                   <>
                     <Lock className="h-3.5 w-3.5" />
-                    <span>{isID ? `Otorisasi & Buka (${formatRupiah(finalPrice)})` : `Authorize & Unlock (${formatRupiah(finalPrice)})`}</span>
+                    <span>{isID ? `Lanjut ke Pembayaran (${formatRupiah(skill.price)})` : `Continue to Payment (${formatRupiah(skill.price)})`}</span>
                   </>
                 )}
               </button>

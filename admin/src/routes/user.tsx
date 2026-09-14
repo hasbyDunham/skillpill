@@ -21,7 +21,7 @@ export const Route = createFileRoute("/user")({
   head: () => ({
     meta: [
       { title: "List User — SkillPill Admin" },
-      { name: "description", content: "Kelola akun admin dan user SkillPill dari database yang sama dengan frontend." },
+      { name: "description", content: "Kelola akun admin dan pembelajar SkillPill." },
     ],
   }),
   component: UserPage,
@@ -111,7 +111,7 @@ function UserPage() {
     <AdminShell
       eyebrow="(03) User"
       title="List User"
-      description="Kelola akun admin dan user yang tersimpan pada database dan digunakan oleh frontend SkillPill."
+      description="Kelola akun admin dan pembelajar SkillPill."
       action={
         <div className="flex flex-wrap items-center gap-2">
           <Input
@@ -125,8 +125,8 @@ function UserPage() {
       }
     >
       <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="User terdaftar" value={String(learners.length)} note="akun learner dari database" />
-        <Stat label="Pesanan paid" value={String(paidOrders.length)} note="akumulasi API" />
+        <Stat label="User terdaftar" value={String(learners.length)} note="akun pembelajar" />
+        <Stat label="Pesanan selesai" value={String(paidOrders.length)} note="transaksi berhasil" />
         <Stat label="Total belanja" value={compactRupiah(totalSpend)} note="transaksi berhasil" />
       </div>
 
@@ -207,7 +207,7 @@ function UserPage() {
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Akun" : "Tambah Akun"}</DialogTitle>
             <DialogDescription>
-              {editing ? "Perbarui data akun. Kosongkan password jika tidak ingin menggantinya." : "Akun tersimpan ke database dan langsung tersedia sesuai role-nya."}
+              {editing ? "Perbarui data akun. Kosongkan password jika tidak ingin menggantinya." : "Akun baru akan tersedia sesuai perannya."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">

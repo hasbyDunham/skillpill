@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /my-skills
+Disallow: /catalog
+Disallow: /leaderboard
+Disallow: /learn/
+Disallow: /login
+Disallow: /register
+
+Sitemap: https://skillpill.kembangin.online/sitemap.xml

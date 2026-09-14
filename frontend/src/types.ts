@@ -7,7 +7,14 @@ export type DifficultyLevel = 'Beginner' | 'Intermediate' | 'Advanced';
 
 export interface ReferenceItem {
   id: string;
-  type: 'Book' | 'Scientific Journal' | 'Research Paper' | 'Article' | 'Official Website' | 'YouTube' | 'Podcast';
+  type:
+    | 'Book'
+    | 'Scientific Journal'
+    | 'Research Paper'
+    | 'Article'
+    | 'Official Website'
+    | 'YouTube'
+    | 'Podcast';
   title: string;
   author?: string;
   url?: string;
@@ -19,10 +26,13 @@ export interface PracticeChallenge {
   title: string;
   instruction: string;
   scenario: string;
-  interactiveType: 'input' | 'multiple-choice' | 'checklist' | 'roleplay';
-  options?: string[]; // For multiple choice
-  correctOption?: string; // For validation
-  checklistItems?: string[]; // For checklist practice
+  interactiveType:
+    | 'input'
+    | 'multiple-choice'
+    | 'checklist';
+  options?: string[];
+  correctOption?: string;
+  checklistItems?: string[];
   sampleAnswer?: string;
 }
 
@@ -33,80 +43,56 @@ export interface ReflectionPrompt {
   helperPrompt: string;
 }
 
+export interface LessonArticle {
+  title?: string;
+  body: string;
+}
+
+export interface LessonAudio {
+  title?: string;
+  url?: string;
+  transcript?: string;
+  duration?: string;
+}
+
+export interface LessonSlide {
+  id: string;
+  title: string;
+  body: string;
+  bullets?: string[];
+  speakerNotes?: string;
+  imageUrl?: string;
+}
+
+export interface LessonFlashcard {
+  id: string;
+  question: string;
+  answer: string;
+}
+
 export interface Lesson {
   id: string;
   title: string;
-  learningObjective: string;
-  bigPicture: string;
-  definition: string;
-  whyItMatters: string;
-  analogy: string;
-  howItWorks: string[];
-  visualType: 'diagram' | 'workflow' | 'formula' | 'comparison' | 'timeline';
-  visualData: {
-    title?: string;
-    nodes?: Array<{ label: string; sub: string; color?: string }>;
-    connections?: string[];
-    leftTitle?: string;
-    leftItems?: string[];
-    rightTitle?: string;
-    rightItems?: string[];
-    steps?: Array<{ label: string; desc: string }>;
-  };
-  realExample: string;
-  commonMistakes: string[];
-  keyTakeaway: string;
-  checklist: string[];
-  practiceChallenge: {
-    title: string;
-    instruction: string;
-    sampleAnswer?: string;
-  };
-  reflectionPrompt: string;
-  summary: string;
-  article?: {
-    title?: string;
-    body: string;
-  };
-  audio?: {
-    title?: string;
-    url?: string;
-    transcript?: string;
-    duration?: string;
-  };
-  slides?: Array<{
-    id: string;
-    title: string;
-    body: string;
-    bullets?: string[];
-    speakerNotes?: string;
-    imageUrl?: string;
-  }>;
-  bentoCards?: Array<{
-    id: string;
-    label: string;
-    title?: string;
-    content: string;
-    tone?: 'default' | 'accent' | 'dark' | 'success' | 'warning';
-    wide?: boolean;
-  }>;
+  learningObjective?: string;
+
+  article?: LessonArticle;
+  audio?: LessonAudio;
+  slides?: LessonSlide[];
+  flashcards?: LessonFlashcard[];
 }
 
-export interface SkillPill {
-  id: string;
-  title: string;
-  shortDescription: string;
-  category: string;
-  estimatedTime: string; // e.g., "30 mins"
-  difficulty: DifficultyLevel;
-  price: number; // e.g., 1.00
-  coverUrl: string;
-  isCustom?: boolean;
+export interface SkillOverview {
+  headline: string;
+  description: string;
   author: string;
-  problem: string;
-  transformation: string;
-  whyLearnThis: string[];
-  evidence: string;
+
+  problem?: string;
+  transformation?: string;
+
+  benefits: string[];
+
+  evidence?: string;
+
   testimonials: Array<{
     name: string;
     role: string;
@@ -114,18 +100,81 @@ export interface SkillPill {
     rating: number;
     avatar?: string;
   }>;
+
   references: ReferenceItem[];
-  faq: Array<{ question: string; answer: string }>;
-  curriculum: Array<{ id: string; title: string; duration: string }>;
-  lessons: Lesson[];
-  practice: PracticeChallenge[];
+
+  faq: Array<{
+    question: string;
+    answer: string;
+  }>;
+}
+
+export interface SkillSummary {
+  content: string;
+
+  /**
+   * Personal Reflection tetap menjadi bagian dari data skill.
+   * Nanti ditampilkan sebagai section tersendiri di learner flow.
+   */
   reflection: ReflectionPrompt[];
-  summary: string;
-  actionPlan: Array<{ step: string; description: string; timeline: string }>;
-  relatedSkills: string[]; // IDs of related SkillPills
+
+  /**
+   * Dipertahankan untuk compatibility dengan data lama.
+   * Tidak menjadi bagian wajib dari flow utama versi baru.
+   */
+  actionPlan: Array<{
+    step: string;
+    description: string;
+    timeline: string;
+  }>;
+
+  relatedSkills: string[];
+}
+
+export interface SkillPill {
+  id: string;
+  title: string;
+  category: string;
+
+  estimatedTime: string;
+  difficulty: DifficultyLevel;
+
+  price: number;
+  coverUrl: string;
+  accessLevel: 'all' | 'pro';
+
+  isCustom?: boolean;
+
+  overview: SkillOverview;
+
+  /**
+   * Lesson dibuat dinamis.
+   * Setiap lesson boleh memiliki content yang berbeda-beda.
+   */
+  lessons: Lesson[];
+
+  /**
+   * Practice bersifat optional.
+   */
+  practice: PracticeChallenge[];
+
+  /**
+   * Summary tetap tersedia.
+   * Personal Reflection berada di dalam summary.reflection.
+   */
+  summary: SkillSummary;
+}
+
+export interface SkillPillPlan {
+  key: 'free' | 'pro';
+  name: string;
+  price: number;
+  benefits: string[];
+  isActive: boolean;
 }
 
 // Commerce types
+
 export interface CartItem {
   skillId: string;
   title: string;
@@ -136,49 +185,103 @@ export interface CartItem {
 export interface Order {
   id: string;
   userId: string;
+
   items: Array<{
     skillId: string;
     title: string;
     price: number;
   }>;
+
   total: number;
   discount: number;
+
   paymentMethod: string;
-  status: 'paid' | 'pending' | 'refunded';
+
+  status: 'paid' | 'pending' | 'failed' | 'expired' | 'refunded';
+
+  orderType?: 'skill' | 'plan';
+
+  planKey?: 'free' | 'pro' | null;
+
   createdAt: string;
+
   couponCode?: string;
 }
 
-// User Profile types
+// User Progress types
+
 export interface UserProgress {
   skillId: string;
-  completedLessons: string[]; // Lesson IDs
+
+  /**
+   * Hanya lesson yang benar-benar dibuat admin yang dihitung.
+   */
+  completedLessons: string[];
+
   isCompleted: boolean;
+
   completedAt?: string;
-  practiceAnswers: Record<string, string>; // PracticeId -> answer
-  reflectionAnswers: Record<string, string>; // ReflectionId -> answer
+
+  practiceAnswers: Record<string, string | string[]>;
+
+  practiceResults?: Record<string, { isCorrect?: boolean; savedAt?: string }>;
+
+  reflectionAnswers: Record<string, string>;
+
   bookmarked: boolean;
+
   favorite: boolean;
-  notes?: Record<string, string>; // LessonId -> notes
+
+  notes?: Record<string, string>;
+
+  learningSeconds?: number;
+
+  lastStudiedAt?: string | null;
+
+  xpEarned?: number;
 }
 
 export interface UserProfile {
   id: string;
   name: string;
   email: string;
+  avatarUrl?: string;
+
   phone?: string;
+
   role: 'user' | 'admin';
+
   plan?: 'free' | 'pro';
+
+  proExpiresAt?: string | null;
+
   joinedAt: string;
-  purchasedSkillPills: string[]; // SkillPill IDs
-  wishlist: string[]; // SkillPill IDs
+
+  purchasedSkillPills: string[];
+
+  wishlist: string[];
+
   collections: Array<{
     id: string;
     title: string;
     description: string;
-    skills: string[]; // SkillPill IDs
+    skills: string[];
   }>;
+
   learningHours: number;
+
   completedSkillCount: number;
+
+  totalXp: number;
+
   streakDays: number;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  name: string;
+  plan: 'free' | 'pro';
+  xp: number;
+  completedSkills: number;
+  user: UserProfile;
 }

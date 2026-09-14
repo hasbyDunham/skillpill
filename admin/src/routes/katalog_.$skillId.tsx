@@ -16,7 +16,7 @@ function SkillDetailPage() {
   const skill = skills.find((item) => item.id === skillId);
 
   if (isLoading) {
-    return <AdminShell eyebrow="(02) Katalog / Detail" title="Detail Skill" description="Memuat data katalog…"><div className="panel p-6 text-sm text-muted-foreground">Mengambil data skill dari API.</div></AdminShell>;
+    return <AdminShell eyebrow="(02) Katalog / Detail" title="Detail Skill" description="Memuat data katalog…"><div className="panel p-6 text-sm text-muted-foreground">Menyiapkan data skill…</div></AdminShell>;
   }
 
   if (!skill) {
@@ -27,7 +27,7 @@ function SkillDetailPage() {
     <AdminShell
       eyebrow="(02) Katalog / Detail"
       title="Detail Katalog Skill"
-      description="Pratinjau lengkap data produk yang digunakan oleh frontend SkillPill."
+      description="Pratinjau lengkap data produk untuk katalog SkillPill."
       action={<Button asChild><Link to="/katalog/$skillId/edit" params={{ skillId }}><Pencil /> Edit Skill</Link></Button>}
     >
       <div className="mb-5">
@@ -45,10 +45,10 @@ function SkillDetailPage() {
               <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground"><BookOpen className="size-3" />{skill.category}</span>
             </div>
             <h2 className="mt-4 text-2xl font-bold leading-tight sm:text-3xl">{skill.title}</h2>
-            <p className="mt-3 text-base leading-7 text-muted-foreground">{skill.landingHeadline}</p>
+            <p className="mt-3 text-base leading-7 text-muted-foreground">{skill.overview.headline}</p>
             <div className="mt-7 border-t border-border pt-6">
               <h3 className="text-sm font-bold uppercase tracking-[0.14em]">Deskripsi landing page</h3>
-              <p className="mt-3 whitespace-pre-line text-sm leading-7 text-muted-foreground">{skill.landingDescription || "Belum ada deskripsi."}</p>
+              <p className="mt-3 whitespace-pre-line text-sm leading-7 text-muted-foreground">{skill.overview.description || "Belum ada deskripsi."}</p>
             </div>
           </div>
         </section>
@@ -60,12 +60,12 @@ function SkillDetailPage() {
               <Info icon={PackageOpen} label="Isi produk" value={skill.digitalContent || "Belum diatur"} />
               <Info icon={Banknote} label="Harga" value={rupiah(skill.price)} />
               <Info icon={ShoppingBag} label="Total order" value={String(skill.orders)} />
-              <Info icon={Clock3} label="Status katalog" value={skill.label === "Draft" ? "Draft" : "Tayang di frontend"} />
+              <Info icon={Clock3} label="Status katalog" value={skill.label === "Draft" ? "Draft" : "Tayang"} />
             </dl>
           </div>
           <div className="panel p-5">
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">Sinkronisasi</p>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">Data detail ini berasal dari API Laravel yang sama dengan katalog frontend.</p>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">Periksa kembali detail sebelum mengubah atau menerbitkan Skill.</p>
           </div>
         </aside>
       </div>

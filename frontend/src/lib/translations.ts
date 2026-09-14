@@ -186,7 +186,7 @@ export const translations = {
     createdBy: "Dibuat oleh Contech.id",
 
     // Feedback
-    giveFeedback: "Beri Ulasan / Masukan",
+    giveFeedback: "Beri Masukan",
     feedbackSuccess: "Terima kasih atas masukan Anda!"
   }
 };

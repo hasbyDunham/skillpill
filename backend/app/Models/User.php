@@ -22,7 +22,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'phone', 'role', 'plan', 'joined_at', 'learning_hours', 'completed_skill_count', 'streak_days',
+        'phone', 'avatar_url', 'role', 'plan', 'pro_expires_at', 'joined_at', 'learning_hours', 'completed_skill_count', 'total_xp', 'streak_days',
         'purchased_skill_pills', 'wishlist', 'collections',
     ];
 
@@ -47,7 +47,9 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'joined_at' => 'datetime',
+            'pro_expires_at' => 'datetime',
             'learning_hours' => 'float',
+            'total_xp' => 'integer',
             'purchased_skill_pills' => 'array',
             'wishlist' => 'array',
             'collections' => 'array',
@@ -55,4 +57,13 @@ class User extends Authenticatable
     }
 
     public function isAdmin(): bool { return $this->role === 'admin'; }
+
+    public function refreshPlanStatus(): void
+    {
+        if ($this->plan === 'pro' && $this->pro_expires_at && $this->pro_expires_at->isPast()) {
+            $this->plan = 'free';
+            $this->pro_expires_at = null;
+            $this->save();
+        }
+    }
 }

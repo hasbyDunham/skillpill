@@ -5,8 +5,8 @@ use Illuminate\Database\Eloquent\Model;
 class Order extends Model
 {
     protected $table = 'orders'; public $incrementing = false; protected $keyType = 'string';
-    protected $fillable = ['id','user_id','items','total','discount','payment_method','status','created_at'];
-    protected $casts = ['items'=>'array','total'=>'float','discount'=>'float'];
+    protected $fillable = ['id','user_id','items','total','discount','payment_method','status','order_type','plan_key','midtrans_snap_token','midtrans_transaction_id','payment_payload','paid_at','expired_at','created_at'];
+    protected $casts = ['items'=>'array','total'=>'float','discount'=>'float','payment_payload'=>'array','paid_at'=>'datetime','expired_at'=>'datetime'];
     public function toApiArray(): array
     {
         $items = array_map(function (array $item): array {
@@ -14,6 +14,6 @@ class Order extends Model
             return $item;
         }, $this->items ?? []);
 
-        return ['id'=>$this->id,'userId'=>(string)$this->user_id,'items'=>$items,'total'=>Currency::rupiah((float)$this->total),'discount'=>Currency::rupiah((float)($this->discount??0)),'paymentMethod'=>$this->payment_method,'status'=>$this->status,'createdAt'=>optional($this->created_at)->toISOString()];
+        return ['id'=>$this->id,'userId'=>(string)$this->user_id,'items'=>$items,'total'=>Currency::rupiah((float)$this->total),'discount'=>Currency::rupiah((float)($this->discount??0)),'paymentMethod'=>$this->payment_method,'status'=>$this->status,'orderType'=>$this->order_type ?? 'skill','planKey'=>$this->plan_key,'createdAt'=>optional($this->created_at)->toISOString()];
     }
 }

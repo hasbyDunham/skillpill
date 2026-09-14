@@ -2,37 +2,40 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   ArrowLeft, BookOpen, Layers, CheckCircle2, Volume2, Sliders, ChevronLeft, ChevronRight, 
   Sparkles, HelpCircle, Send, Play, Pause, Bookmark, Heart, FileText, Award, RefreshCw, AlertCircle,
-  Minimize2, Maximize2, MousePointer, Flame, Check, BookmarkCheck, Calendar, Bell, ExternalLink, Activity, Info,
-  Compass, Map, Lock, Target, Brain, Zap, FileCheck, BookMarked, GraduationCap, Clock, Sun, Moon, Globe, Star, Menu, X
+  Minimize2, Maximize2, MousePointer, Flame, Check, BookmarkCheck, Calendar, Bell, ExternalLink, Info,
+  Compass, Map, Lock, Target, Brain, Zap, FileCheck, BookMarked, GraduationCap, Clock, Globe, Star, Menu, X, Loader2
 } from 'lucide-react';
 import { SkillPill, Lesson, UserProgress } from '../types';
 import { Language } from '../lib/translations';
 import { getSkillCover } from '../lib/skillImage';
 import { localizeCategory, localizeDifficulty, localizeDuration } from '../lib/localization';
+import { apiFetch } from '../lib/api';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Modular Sub-components
 import LearningContract from './player/LearningContract';
 import PersonalizationPanel, { PersonalizationConfig } from './player/PersonalizationPanel';
 import LiveAnalytics from './player/LiveAnalytics';
-import LessonComponentsPlayground from './player/LessonComponentsPlayground';
 import ReferenceCenter from './player/ReferenceCenter';
 
 interface LearningPlayerProps {
   skill: SkillPill;
   progress: UserProgress;
   onBack: () => void;
-  onUpdateProgress: (data: Partial<UserProgress>) => Promise<void>;
-  darkMode?: boolean;
-  onToggleDarkMode?: () => void;
+  onUpdateProgress: (data: Partial<UserProgress>) => Promise<boolean>;
   lang?: Language;
   onLanguageChange?: (lang: Language) => void;
   onOpenFeedback?: () => void;
+  resumeFromProgress?: boolean;
 }
 
 type LearningTab = 
@@ -47,86 +50,22 @@ type LearningTab =
   | 'references' 
   | 'completed';
 
-type ContentMode = 'card' | 'presentation' | 'reading' | 'listen';
-
-const bentoToneClasses = {
-  default: 'bg-white border-stone-200 text-stone-800 dark:bg-stone-900 dark:border-stone-800 dark:text-stone-100',
-  accent: 'bg-brand-50 border-brand-500/25 text-stone-900 dark:bg-brand-950/30 dark:text-stone-100',
-  dark: 'bg-stone-950 border-stone-800 text-white',
-  success: 'bg-emerald-50 border-emerald-500/25 text-emerald-950 dark:bg-emerald-950/30 dark:text-emerald-100',
-  warning: 'bg-amber-50 border-amber-500/25 text-amber-950 dark:bg-amber-950/30 dark:text-amber-100',
-};
-
-function createSafeLessons(skill: SkillPill): Lesson[] {
-  const lessonDefaults = (index: number, title?: string): Lesson => ({
-    id: `${skill.id}-lesson-${index + 1}`,
-    title: title || `Modul ${index + 1}: ${skill.title}`,
-    learningObjective: skill.transformation || `Memahami dasar ${skill.title} dan menerapkannya secara praktis.`,
-    bigPicture: skill.shortDescription || `Gambaran utama tentang ${skill.title}.`,
-    definition: skill.problem || skill.shortDescription || `${skill.title} adalah keterampilan praktis yang dapat langsung diterapkan.`,
-    whyItMatters: skill.transformation || `Keterampilan ini membantu pembelajar memperoleh hasil yang lebih terarah.`,
-    analogy: `Pelajari ${skill.title} seperti menyusun peta: pahami arah, ikuti langkahnya, lalu praktikkan.`,
-    howItWorks: [
-      'Pahami konsep dan tujuan utamanya.',
-      'Ikuti langkah penerapan secara berurutan.',
-      'Praktikkan pada situasi nyata dan evaluasi hasilnya.',
-    ],
-    visualType: 'workflow',
-    visualData: {
-      title: 'Alur Penerapan',
-      steps: [
-        { label: 'Pahami', desc: 'Kenali konsep inti dan hasil yang dituju.' },
-        { label: 'Terapkan', desc: 'Gunakan langkah praktis pada situasi nyata.' },
-        { label: 'Evaluasi', desc: 'Tinjau hasil dan perbaiki pendekatan.' },
-      ],
-    },
-    realExample: `Gunakan kerangka ${skill.title} pada satu situasi kerja atau aktivitas harian Anda.`,
-    commonMistakes: ['Melewati konsep dasar', 'Mencoba semua langkah sekaligus tanpa evaluasi'],
-    keyTakeaway: skill.transformation || `Mulai dari satu langkah kecil untuk menguasai ${skill.title}.`,
-    checklist: ['Pahami tujuan', 'Pilih situasi praktik', 'Terapkan langkah', 'Evaluasi hasil'],
-    practiceChallenge: {
-      title: 'Praktik singkat',
-      instruction: `Tuliskan bagaimana Anda akan menerapkan ${skill.title} pada situasi nyata.`,
-      sampleAnswer: 'Saya akan memilih satu situasi, mengikuti langkahnya, lalu mencatat hasilnya.',
-    },
-    reflectionPrompt: `Apa satu hal dari ${skill.title} yang paling relevan untuk Anda?`,
-    summary: skill.summary || skill.shortDescription || `Ringkasan ${skill.title}.`,
-  });
-
-  if (Array.isArray(skill.lessons) && skill.lessons.length > 0) {
-    return skill.lessons.map((lesson, index) => ({
-      ...lessonDefaults(index, lesson?.title),
-      ...lesson,
-      visualData: lesson?.visualData || {},
-      howItWorks: lesson?.howItWorks || [],
-      commonMistakes: lesson?.commonMistakes || [],
-      checklist: lesson?.checklist || [],
-      practiceChallenge: lesson?.practiceChallenge || lessonDefaults(index).practiceChallenge,
-    }));
-  }
-
-  const modules = Array.isArray(skill.curriculum) && skill.curriculum.length > 0
-    ? skill.curriculum
-    : [{ id: `${skill.id}-module-1`, title: skill.title, duration: skill.estimatedTime || '15 mins' }];
-  return modules.map((module, index) => ({ ...lessonDefaults(index, module.title), id: module.id || `${skill.id}-lesson-${index + 1}` }));
-}
+type ContentMode = 'flashcards' | 'presentation' | 'reading' | 'listen';
+type InlineSaveStatus = { tone: 'success' | 'error'; message: string };
 
 export default function LearningPlayer({ 
   skill, 
   progress, 
   onBack, 
   onUpdateProgress,
-  darkMode = false,
-  onToggleDarkMode,
   lang = 'ID',
   onLanguageChange,
-  onOpenFeedback
+  onOpenFeedback,
+  resumeFromProgress = false,
 }: LearningPlayerProps) {
-  const lessons = createSafeLessons(skill);
+  const lessons = skill.lessons;
   const practices = skill.practice || [];
-  const learningBenefits = skill.whyLearnThis?.length
-    ? skill.whyLearnThis
-    : [skill.transformation || `Kuasai dasar ${skill.title} dan terapkan pada situasi nyata.`];
+  const learningBenefits = skill.overview.benefits;
   // Toast state for like & save feedback
   const [likeToast, setLikeToast] = useState<string | null>(null);
 
@@ -155,9 +94,16 @@ export default function LearningPlayer({
   // Navigation
   const [activeTab, setActiveTab] = useState<LearningTab>('overview');
   const [activeLessonIdx, setActiveLessonIdx] = useState(0);
-  const [contentMode, setContentMode] = useState<ContentMode>('card');
+  const [contentMode, setContentMode] = useState<ContentMode>('flashcards');
   const [isContractCommitted, setIsContractCommitted] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    if (!resumeFromProgress) return;
+    const nextLessonIndex = lessons.findIndex((lesson) => !(progress.completedLessons || []).includes(lesson.id));
+    setActiveLessonIdx(nextLessonIndex >= 0 ? nextLessonIndex : 0);
+    setActiveTab('lessons');
+  }, [skill.id, resumeFromProgress]);
 
   useEffect(() => {
     setIsMobileSidebarOpen(false);
@@ -165,7 +111,7 @@ export default function LearningPlayer({
 
   // Floating Overlays toggles
   const [personalizationOpen, setPersonalizationOpen] = useState(false);
-  const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [learningTimeOpen, setLearningTimeOpen] = useState(false);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
 
   // Personalization Config
@@ -182,17 +128,18 @@ export default function LearningPlayer({
   const [userInput, setUserInput] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
 
-  // Lesson Sandbox states
-  const [checklistChecked, setChecklistChecked] = useState<Record<string, boolean>>({});
-  const [miniPracticeAnswers, setMiniPracticeAnswers] = useState<Record<string, string>>({});
-  const [miniPracticeFeedback, setMiniPracticeFeedback] = useState<Record<string, string>>({});
-  const [lessonReflectionAnswers, setLessonReflectionAnswers] = useState<Record<string, string>>({});
-
-  // Practice Challenges & Personal Evaluations
-  const [userPracticeAnswers, setUserPracticeAnswers] = useState<Record<string, string>>(progress.practiceAnswers || {});
+  // Practice answers are saved and evaluated by the backend.
+  const [userPracticeAnswers, setUserPracticeAnswers] = useState<Record<string, string | string[]>>(progress.practiceAnswers || {});
   const [userReflectionAnswers, setUserReflectionAnswers] = useState<Record<string, string>>(progress.reflectionAnswers || {});
-  const [practiceFeedback, setPracticeFeedback] = useState<Record<string, string>>({});
-  const [isFeedbackLoading, setIsFeedbackLoading] = useState<Record<string, boolean>>({});
+  const [noteSaveStatus, setNoteSaveStatus] = useState<InlineSaveStatus | null>(null);
+  const [practiceSaveStatus, setPracticeSaveStatus] = useState<Record<string, InlineSaveStatus | undefined>>({});
+  const [practiceSectionStatus, setPracticeSectionStatus] = useState<InlineSaveStatus | null>(null);
+  const [reflectionSaveStatus, setReflectionSaveStatus] = useState<Record<string, InlineSaveStatus | undefined>>({});
+
+  useEffect(() => {
+    setUserPracticeAnswers(progress.practiceAnswers || {});
+    setUserReflectionAnswers(progress.reflectionAnswers || {});
+  }, [skill.id]);
 
   // Matching game interactive state (Practice Module)
   const [selectedTerm, setSelectedTerm] = useState<string | null>(null);
@@ -205,7 +152,89 @@ export default function LearningPlayer({
   const [actionPlanCheck, setActionPlanCheck] = useState<Record<string, boolean>>({});
   const [isReminderSet, setIsReminderSet] = useState<Record<string, boolean>>({});
 
-  const referencesList = skill.references || [];
+  const referencesList = skill.overview.references;
+
+  // Rating & Testimonial State (Post-completion)
+  const [userRating, setUserRating] = useState<number>(5);
+  const [hoverRating, setHoverRating] = useState<number>(0);
+  const [userTestimonial, setUserTestimonial] = useState<string>('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState<boolean>(false);
+  const [reviewSuccessMsg, setReviewSuccessMsg] = useState<string>('');
+  const [reviewErrorMsg, setReviewErrorMsg] = useState<string>('');
+  const [hasSubmittedReview, setHasSubmittedReview] = useState<boolean>(false);
+
+  // Fetch existing review if any
+  useEffect(() => {
+    if (!progress.isCompleted) {
+      return;
+    }
+
+    let isMounted = true;
+    async function loadMyReview() {
+      try {
+        const res = await apiFetch(`/api/skills/${skill.id}/my-review`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.review && isMounted) {
+            setUserRating(data.review.rating || 5);
+            setUserTestimonial(data.review.review || '');
+            setHasSubmittedReview(true);
+          }
+        }
+      } catch (e) {
+        // silent
+      }
+    }
+    loadMyReview();
+    return () => { isMounted = false; };
+  }, [progress.isCompleted, skill.id]);
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setReviewSuccessMsg('');
+    setReviewErrorMsg('');
+
+    if (!progress.isCompleted) {
+      setReviewErrorMsg(
+        lang === 'ID'
+          ? 'Selesaikan pembelajaran sebelum memberikan rating dan testimoni.'
+          : 'Please complete the learning journey before submitting a rating and testimonial.',
+      );
+      return;
+    }
+
+    if (!userRating || userRating < 1 || userRating > 5) {
+      setReviewErrorMsg(lang === 'ID' ? 'Silakan pilih rating 1-5 bintang.' : 'Please select a rating between 1 and 5 stars.');
+      return;
+    }
+    if (!userTestimonial.trim()) {
+      setReviewErrorMsg(lang === 'ID' ? 'Silakan tulis testimoni ulasan Anda.' : 'Please write your review / testimonial.');
+      return;
+    }
+
+    setIsSubmittingReview(true);
+    try {
+      const res = await apiFetch(`/api/skills/${skill.id}/reviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rating: userRating,
+          review: userTestimonial.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || data.error || (lang === 'ID' ? 'Gagal mengirim ulasan.' : 'Failed to submit review.'));
+      }
+      setHasSubmittedReview(true);
+      setReviewSuccessMsg(data.message || (lang === 'ID' ? 'Rating & testimoni berhasil disimpan!' : 'Rating & testimonial saved successfully!'));
+      setTimeout(() => setReviewSuccessMsg(''), 4000);
+    } catch (err: any) {
+      setReviewErrorMsg(err.message || (lang === 'ID' ? 'Terjadi kesalahan sistem.' : 'A system error occurred.'));
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
 
   // Speech Synthesis Narration (Listen Mode)
   const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
@@ -213,10 +242,64 @@ export default function LearningPlayer({
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
-  const [selectedNarrator, setSelectedNarrator] = useState<'aria' | 'marcus'>('aria');
+  const [voiceLanguage, setVoiceLanguage] = useState<'id-ID' | 'en-US'>('id-ID');
   const [sleepTimer, setSleepTimer] = useState<number | null>(null);
-  const [audioUsageCount, setAudioUsageCount] = useState(0);
+  const [speechElapsed, setSpeechElapsed] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [learningSeconds, setLearningSeconds] = useState(progress.learningSeconds || 0);
+  const pendingLearningSeconds = useRef(0);
+
+  useEffect(() => {
+    pendingLearningSeconds.current = 0;
+    setLearningSeconds(progress.learningSeconds || 0);
+  }, [skill.id]);
+
+  useEffect(() => {
+    setLearningSeconds(progress.learningSeconds || 0);
+  }, [progress.learningSeconds]);
+
+  useEffect(() => {
+    let lastTick = Date.now();
+
+    const recordElapsedTime = (includeJustHiddenTime = false) => {
+      if (!includeJustHiddenTime && document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      const elapsed = Math.floor((now - lastTick) / 1000);
+      lastTick = now;
+      if (elapsed <= 0) return;
+
+      pendingLearningSeconds.current += elapsed;
+      setLearningSeconds((current) => current + elapsed);
+    };
+
+    const saveElapsedTime = () => {
+      const seconds = Math.min(pendingLearningSeconds.current, 60);
+      if (seconds <= 0) return;
+      pendingLearningSeconds.current -= seconds;
+      void onUpdateProgress({ learningSeconds: seconds });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        recordElapsedTime(true);
+        saveElapsedTime();
+      }
+      lastTick = Date.now();
+    };
+
+    const interval = window.setInterval(() => {
+      recordElapsedTime();
+      if (pendingLearningSeconds.current >= 30) saveElapsedTime();
+    }, 1000);
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      recordElapsedTime();
+      saveElapsedTime();
+    };
+  }, [skill.id, onUpdateProgress]);
 
   // Reading Mode state
   const [bookmarkedLessons, setBookmarkedLessons] = useState<string[]>([]);
@@ -230,37 +313,61 @@ export default function LearningPlayer({
   const [activeSlideIdx, setActiveSlideIdx] = useState(0);
 
   // Sync state
-  const activeLesson: Lesson = lessons[activeLessonIdx] || lessons[0];
-  const lessonSlides = activeLesson.slides?.length
-    ? activeLesson.slides
-    : [{
-        id: `${activeLesson.id}-slide-1`,
-        title: activeLesson.title,
-        body: activeLesson.bigPicture,
-        bullets: activeLesson.howItWorks,
-        speakerNotes: activeLesson.summary,
-        imageUrl: '',
-      }];
-  const activeSlide = lessonSlides[Math.min(activeSlideIdx, lessonSlides.length - 1)];
-  const articleTitle = activeLesson.article?.title || activeLesson.title;
-  const articleParagraphs = (activeLesson.article?.body || [activeLesson.bigPicture, activeLesson.definition, activeLesson.whyItMatters, activeLesson.analogy].filter(Boolean).join('\n\n'))
+  const activeLesson: Lesson | undefined = lessons[activeLessonIdx];
+  const lessonSlides = activeLesson?.slides ?? [];
+  const activeSlide = lessonSlides[Math.min(activeSlideIdx, Math.max(0, lessonSlides.length - 1))];
+  const lessonContentModes: Array<{ mode: ContentMode; label: string }> = [
+    ...(activeLesson?.flashcards?.length ? [{ mode: 'flashcards' as const, label: 'Bento' }] : []),
+    ...(lessonSlides.length ? [{ mode: 'presentation' as const, label: lang === 'ID' ? 'Slide' : 'Slides' }] : []),
+    ...(activeLesson?.article ? [{ mode: 'reading' as const, label: lang === 'ID' ? 'Artikel' : 'Reading' }] : []),
+    ...(activeLesson?.article ? [{ mode: 'listen' as const, label: 'Audio' }] : []),
+  ];
+  const activeContentMode = lessonContentModes.some(({ mode }) => mode === contentMode)
+    ? contentMode
+    : lessonContentModes[0]?.mode;
+  const articleTitle = activeLesson?.article?.title || activeLesson?.title || '';
+  const articleParagraphs = (activeLesson?.article?.body || '')
     .split(/\n\s*\n/)
     .filter(Boolean);
-  const hasVisualContent = Boolean(
-    activeLesson.visualData && (
-      (activeLesson.visualType === 'comparison' && (
-        activeLesson.visualData.leftItems?.length || activeLesson.visualData.rightItems?.length
-      )) ||
-      (activeLesson.visualType === 'diagram' && activeLesson.visualData.nodes?.length) ||
-      (activeLesson.visualType === 'workflow' && activeLesson.visualData.steps?.length)
-    )
-  );
+  const speechDuration = Math.max(1, Math.ceil(((activeLesson?.article?.body || '').trim().split(/\s+/).filter(Boolean).length / 150) * 60 / playbackSpeed));
+  const formatSpeechTime = (seconds: number) => `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
 
-  const isCompleted100 = lessons.length > 0 && progress.completedLessons.length >= lessons.length;
-  const isUnlocked = isContractCommitted || isCompleted100;
-  const completedLessonIds = new Set(progress.completedLessons || []);
+  const completedLessons = Array.from(new Set(
+    (progress.completedLessons || []).filter((lessonId) => lessons.some((lesson) => lesson.id === lessonId)),
+  ));
+  const reflections = skill.summary.reflection || [];
+  const hasPractice = practices.length > 0;
+  const hasReflections = reflections.length > 0;
+  const hasSummary = Boolean(skill.summary.content?.trim());
+  const practiceComplete = hasPractice && practices.every((practice) => {
+    const answer = progress.practiceAnswers?.[practice.id];
+
+    if (practice.interactiveType === 'multiple-choice') {
+      return progress.practiceResults?.[practice.id]?.isCorrect === true;
+    }
+
+    if (practice.interactiveType === 'checklist') {
+      const items = practice.checklistItems || [];
+      return items.length > 0
+        && Array.isArray(answer)
+        && items.every((item) => answer.includes(item));
+    }
+
+    return typeof answer === 'string' && answer.trim() !== '';
+  });
+  const reflectionsComplete = hasReflections && reflections.every((reflection) => Boolean(progress.reflectionAnswers?.[reflection.id]));
+  const totalProgressItems = lessons.length + Number(hasPractice) + Number(hasReflections) + Number(hasSummary);
+  const completedProgressItems = completedLessons.length
+    + Number(practiceComplete)
+    + Number(reflectionsComplete)
+    + Number(Boolean(progress.isCompleted && hasSummary));
+  const progressPercentage = totalProgressItems
+    ? Math.round((completedProgressItems / totalProgressItems) * 100)
+    : 0;
+  const isCompleted100 = lessons.length > 0 && completedLessons.length >= lessons.length;
+  const isUnlocked = true;
+  const completedLessonIds = new Set(completedLessons);
   const firstIncompleteLessonIdx = lessons.findIndex((lesson) => !completedLessonIds.has(lesson.id));
-  const nextLessonIdx = firstIncompleteLessonIdx === -1 ? 0 : firstIncompleteLessonIdx;
   const isLessonAvailable = (index: number) =>
     index >= 0 &&
     index < lessons.length &&
@@ -268,16 +375,22 @@ export default function LearningPlayer({
     lessons.slice(0, index).every((lesson) => completedLessonIds.has(lesson.id));
 
   const openLesson = (index: number) => {
-    if (!isUnlocked) {
-      setActiveTab('contract');
-      return;
-    }
     if (!isLessonAvailable(index)) return;
     setActiveLessonIdx(index);
     setActiveTab('lessons');
   };
 
-  const beginNextLesson = () => openLesson(nextLessonIdx);
+  const beginNextLesson = () => {
+    if (firstIncompleteLessonIdx !== -1) {
+      openLesson(firstIncompleteLessonIdx);
+    } else if (hasPractice) {
+      setActiveTab('practice');
+    } else if (hasReflections) {
+      setActiveTab('reflection');
+    } else if (hasSummary) {
+      setActiveTab('summary');
+    }
+  };
 
   useEffect(() => {
     if (isCompleted100) {
@@ -287,8 +400,11 @@ export default function LearningPlayer({
 
   useEffect(() => {
     if (activeLesson) {
+      const firstAvailableMode = lessonContentModes[0]?.mode;
+      if (firstAvailableMode) setContentMode(firstAvailableMode);
       setNotesText(progress.notes?.[activeLesson.id] || '');
       setActiveSlideIdx(0);
+      setSpeechElapsed(0);
       if (synth) synth.cancel();
       if (audioRef.current) {
         audioRef.current.pause();
@@ -297,7 +413,7 @@ export default function LearningPlayer({
       setIsSpeaking(false);
       setIsPaused(false);
     }
-  }, [activeLessonIdx]);
+  }, [skill.id, activeLesson?.id]);
 
   // Cleanup speech synthesis on unmount
   useEffect(() => {
@@ -327,28 +443,17 @@ export default function LearningPlayer({
     return () => clearInterval(interval);
   }, [sleepTimer]);
 
-  // Tracking metrics
-  const practiceAnswersCount = Object.keys(userPracticeAnswers).length;
-  const reflectionAnswersCount = Object.keys(userReflectionAnswers).length;
-  const notesCount = Object.keys(progress.notes || {}).length;
-  const bookmarksCount = bookmarkedLessons.length + (progress.bookmarked ? 1 : 0);
+  useEffect(() => {
+    if (!isSpeaking || isPaused) return;
+    const interval = window.setInterval(() => {
+      setSpeechElapsed((elapsed) => Math.min(speechDuration, elapsed + 1));
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [isPaused, isSpeaking, speechDuration]);
 
   // Speech synthesis play logic
   const handleSpeak = () => {
     if (!activeLesson) return;
-
-    if (activeLesson.audio?.url && audioRef.current) {
-      if (audioRef.current.paused) {
-        audioRef.current.playbackRate = playbackSpeed;
-        void audioRef.current.play().catch(() => {
-          setIsSpeaking(false);
-          setIsPaused(false);
-        });
-      } else {
-        audioRef.current.pause();
-      }
-      return;
-    }
 
     if (!synth) return;
 
@@ -365,23 +470,21 @@ export default function LearningPlayer({
 
     synth.cancel();
 
-    const textToRead = activeLesson.audio?.transcript || activeLesson.article?.body || `
-      Lesson: ${activeLesson.title}.
-      Learning Objective: ${activeLesson.learningObjective}.
-      Big Picture: ${activeLesson.bigPicture}.
-      Definition: ${activeLesson.definition}.
-      Why It Matters: ${activeLesson.whyItMatters}.
-      Analogy: ${activeLesson.analogy}.
-      Key Takeaway: ${activeLesson.keyTakeaway}.
-    `;
+    const textToRead = activeLesson.article?.body;
+    if (!textToRead) return;
 
     const utterance = new SpeechSynthesisUtterance(textToRead);
     utterance.rate = playbackSpeed;
-    utterance.pitch = selectedNarrator === 'aria' ? 1.1 : 0.9;
+    utterance.lang = voiceLanguage;
+    const preferredVoice = synth.getVoices().find((voice) =>
+      voice.lang.toLowerCase().startsWith(voiceLanguage.slice(0, 2)),
+    );
+    if (preferredVoice) utterance.voice = preferredVoice;
     
     utterance.onend = () => {
       setIsSpeaking(false);
       setIsPaused(false);
+      setSpeechElapsed(speechDuration);
     };
     utterance.onerror = () => {
       setIsSpeaking(false);
@@ -389,9 +492,9 @@ export default function LearningPlayer({
     };
 
     utteranceRef.current = utterance;
+    setSpeechElapsed(0);
     setIsSpeaking(true);
     setIsPaused(false);
-    setAudioUsageCount((prev) => prev + 1);
     synth.speak(utterance);
   };
 
@@ -405,13 +508,33 @@ export default function LearningPlayer({
     }
     setIsSpeaking(false);
     setIsPaused(false);
+    setSpeechElapsed(0);
+  };
+
+  const handleDownloadCertificate = () => {
+    const escapeHtml = (value: string) => {
+      const entities: Record<string, string> = {
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      };
+      return value.replace(/[&<>"']/g, (character) => entities[character] ?? character);
+    };
+    const completedAt = new Date().toLocaleDateString(lang === 'ID' ? 'id-ID' : 'en-US');
+    const certificateHtml = `<!doctype html><html lang="${lang === 'ID' ? 'id' : 'en'}"><head><meta charset="utf-8"><title>Certificate - ${escapeHtml(skill.title)}</title><style>body{font-family:Arial,sans-serif;background:#f8fbff;padding:48px;color:#172033}.certificate{max-width:760px;margin:auto;border:8px double #2563eb;padding:56px;text-align:center;background:white}.label{letter-spacing:2px;font-size:12px;color:#2563eb;font-weight:bold}.title{font-family:Georgia,serif;font-size:36px;margin:24px 0}.skill{font-size:26px;font-weight:bold}.date{margin-top:36px;color:#64748b}</style></head><body><main class="certificate"><div class="label">SKILLPILL • OFFICIAL CREDENTIAL</div><h1 class="title">${lang === 'ID' ? 'Sertifikat Penguasaan Skill' : 'Certificate of Skill Mastery'}</h1><p>${lang === 'ID' ? 'Dokumen ini menyatakan bahwa Pembelajar telah menyelesaikan pembelajaran' : 'This certifies that the Learner has completed the learning program'}</p><p class="skill">${escapeHtml(skill.title)}</p><p class="date">${lang === 'ID' ? 'Tanggal selesai' : 'Completion date'}: ${completedAt}</p></main></body></html>`;
+    const url = URL.createObjectURL(new Blob([certificateHtml], { type: 'text/html' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `sertifikat-${skill.id}.html`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   // Theme variable map
   const getThemeClass = () => {
+    if (personalization.theme === 'dark') {
+      return 'bg-stone-950 text-stone-100 border-stone-850';
+    }
+
     switch (personalization.theme) {
-      case 'dark':
-        return 'bg-stone-950 text-stone-100 border-stone-850';
       case 'sepia':
         return 'bg-[#f4ecd8] text-[#433e30] border-[#e4dcbf]';
       case 'paper':
@@ -423,9 +546,11 @@ export default function LearningPlayer({
   };
 
   const getSubCardClass = () => {
+    if (personalization.theme === 'dark') {
+      return 'bg-stone-900 border-stone-800 text-stone-100';
+    }
+
     switch (personalization.theme) {
-      case 'dark':
-        return 'bg-stone-900 border-stone-800 text-stone-100';
       case 'sepia':
         return 'bg-[#ebdcb9] border-[#e4dcbf] text-[#433e30]';
       case 'paper':
@@ -433,20 +558,6 @@ export default function LearningPlayer({
       case 'light':
       default:
         return 'bg-white border-stone-200 text-stone-900 shadow-sm';
-    }
-  };
-
-  const getSomaticAnalogyClass = () => {
-    switch (personalization.theme) {
-      case 'dark':
-        return 'bg-[#3b2d18] border-brand-900 text-brand-100';
-      case 'sepia':
-        return 'bg-[#dfceaa] border-brand-950 text-[#3d240e]';
-      case 'paper':
-        return 'bg-[#dfdab5] border-brand-950 text-stone-900';
-      case 'light':
-      default:
-        return 'bg-stone-900 border-stone-800 text-stone-100';
     }
   };
 
@@ -490,64 +601,29 @@ export default function LearningPlayer({
     }
   };
 
-  // AI evaluations for practices
   const handlePracticeSubmit = async (pId: string) => {
-    const ans = userPracticeAnswers[pId] || '';
-    if (!ans) return;
-
-    const answers = { ...progress.practiceAnswers, [pId]: ans };
-    await onUpdateProgress({ practiceAnswers: answers });
-
-    setIsFeedbackLoading(prev => ({ ...prev, [pId]: true }));
-    try {
-      const challenge = practices.find(p => p.id === pId);
-      const res = await fetch('/api/ai/ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mode: 'partner',
-          lessonContext: {
-            title: challenge?.title || 'Practice Challenge',
-            objective: challenge?.instruction || '',
-            details: challenge?.scenario || ''
-          },
-          userMessage: ans
-        })
-      });
-      const data = await res.json();
-      setPracticeFeedback(prev => ({ ...prev, [pId]: data.reply || 'Great work!' }));
-    } catch (err) {
-      setPracticeFeedback(prev => ({ ...prev, [pId]: 'Your answer has been verified & registered! Keep practicing to secure retention.' }));
-    } finally {
-      setIsFeedbackLoading(prev => ({ ...prev, [pId]: false }));
+    const answer = userPracticeAnswers[pId];
+    const hasAnswer = Array.isArray(answer)
+      ? answer.length > 0
+      : typeof answer === 'string' && answer.trim() !== '';
+    if (!hasAnswer) {
+      setPracticeSaveStatus((previous) => ({
+        ...previous,
+        [pId]: { tone: 'error', message: lang === 'ID' ? 'Lengkapi jawaban terlebih dahulu.' : 'Complete your answer first.' },
+      }));
+      return;
     }
-  };
 
-  // Evaluates mini practice in the lesson card
-  const handleEvaluateMiniPractice = async (lessonId: string) => {
-    const ans = miniPracticeAnswers[lessonId];
-    if (!ans) return;
-
-    setMiniPracticeFeedback(prev => ({ ...prev, [lessonId]: 'Checking...' }));
-    try {
-      const res = await fetch('/api/ai/ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mode: 'simplify',
-          lessonContext: {
-            title: activeLesson.title,
-            objective: activeLesson.learningObjective,
-            details: activeLesson.definition
-          },
-          userMessage: `Check this mini practice: "${ans}"`
-        })
-      });
-      const data = await res.json();
-      setMiniPracticeFeedback(prev => ({ ...prev, [lessonId]: data.reply || 'Superb execution!' }));
-    } catch {
-      setMiniPracticeFeedback(prev => ({ ...prev, [lessonId]: 'Excellent focus! Your response has been logged.' }));
+    const answers = { ...(progress.practiceAnswers || {}), [pId]: answer };
+    const saved = await onUpdateProgress({ practiceAnswers: answers });
+    if (!saved) {
+      setPracticeSaveStatus((previous) => ({
+        ...previous,
+        [pId]: { tone: 'error', message: lang === 'ID' ? 'Jawaban gagal disimpan. Silakan coba lagi.' : 'Your answer could not be saved. Please try again.' },
+      }));
+      return;
     }
+    setPracticeSaveStatus((previous) => ({ ...previous, [pId]: undefined }));
   };
 
   // Reflection saving
@@ -556,42 +632,59 @@ export default function LearningPlayer({
     if (!ans) return;
 
     const answers = { ...progress.reflectionAnswers, [rId]: ans };
-    await onUpdateProgress({ reflectionAnswers: answers });
-    alert(lang === 'ID' ? 'Refleksi berhasil disimpan ke jurnal profil Anda.' : 'Reflection saved to your profile journal.');
-  };
-
-  const handleLessonReflectionSubmit = (lessId: string) => {
-    const ans = lessonReflectionAnswers[lessId];
-    if (!ans) return;
-    alert(lang === 'ID' ? 'Refleksi pelajaran berhasil disimpan.' : 'Lesson reflection saved.');
+    const saved = await onUpdateProgress({ reflectionAnswers: answers });
+    setReflectionSaveStatus((previous) => ({
+      ...previous,
+      [rId]: saved
+        ? { tone: 'success', message: lang === 'ID' ? 'Refleksi berhasil disimpan.' : 'Reflection saved.' }
+        : { tone: 'error', message: lang === 'ID' ? 'Refleksi gagal disimpan. Silakan coba lagi.' : 'Your reflection could not be saved. Please try again.' },
+    }));
   };
 
   const handleCompleteLesson = async () => {
-    const currentCompleted = [...(progress.completedLessons || [])];
+    if (!activeLesson) return;
+    const currentCompleted = [...completedLessons];
     if (!currentCompleted.includes(activeLesson.id)) {
       currentCompleted.push(activeLesson.id);
     }
 
     const isAllLessonsCompleted = currentCompleted.length === lessons.length;
-    
+
     await onUpdateProgress({
       completedLessons: currentCompleted,
-      isCompleted: isAllLessonsCompleted || progress.isCompleted
+      isCompleted: progress.isCompleted || (isAllLessonsCompleted && !hasPractice && !hasReflections && !hasSummary),
     });
 
     if (activeLessonIdx < lessons.length - 1) {
       setActiveLessonIdx(activeLessonIdx + 1);
-    } else {
+      setActiveTab('lessons');
+    } else if (hasPractice) {
       setActiveTab('practice');
+    } else if (hasReflections) {
+      setActiveTab('reflection');
+    } else if (hasSummary) {
+      setActiveTab('summary');
+    } else {
+      setActiveTab('completed');
     }
+  };
+
+  const completeLearning = async () => {
+    await onUpdateProgress({
+      completedLessons,
+      isCompleted: true,
+      completedAt: new Date().toISOString(),
+    });
+    setActiveTab('completed');
   };
 
   // Interactive AI Coach Drawer
   const handleAskAICoach = async (mode: 'explain' | 'simplify' | 'analogy' | 'custom') => {
+    if (!activeLesson) return;
     const context = {
       title: activeLesson.title,
       objective: activeLesson.learningObjective,
-      details: `${activeLesson.definition} ${activeLesson.bigPicture} ${activeLesson.analogy}`
+      details: activeLesson.article?.body || ''
     };
 
     let msg = '';
@@ -630,15 +723,23 @@ export default function LearningPlayer({
     }
   };
 
-  const handleSaveNotes = () => {
+  const handleSaveNotes = async () => {
+    if (!activeLesson) return;
+    const lessonIndex = activeLessonIdx;
     const updatedNotes = { ...(progress.notes || {}) };
     updatedNotes[activeLesson.id] = notesText;
-    onUpdateProgress({ notes: updatedNotes });
-    alert(lang === 'ID' ? 'Catatan berhasil disimpan.' : 'Notes saved successfully.');
+    const saved = await onUpdateProgress({ notes: updatedNotes });
+    if (!saved) {
+      setNoteSaveStatus({ tone: 'error', message: lang === 'ID' ? 'Catatan gagal disimpan. Silakan coba lagi.' : 'Your notes could not be saved. Please try again.' });
+      return;
+    }
+    setActiveLessonIdx(lessonIndex);
+    setActiveTab('lessons');
+    setNoteSaveStatus({ tone: 'success', message: lang === 'ID' ? 'Catatan berhasil disimpan.' : 'Notes saved successfully.' });
   };
 
   return (
-    <div className={`min-h-screen flex flex-col md:flex-row transition-colors duration-300 font-sans ${getThemeClass()}`}>
+    <div className={`skillpill-learning-player min-h-screen flex flex-col md:flex-row transition-colors duration-300 font-sans ${personalization.theme === 'dark' ? 'dark' : ''} ${getThemeClass()}`}>
       {isMobileSidebarOpen && (
         <button
           type="button"
@@ -647,16 +748,6 @@ export default function LearningPlayer({
           className="fixed inset-0 z-40 bg-stone-950/70 backdrop-blur-[2px] md:hidden"
         />
       )}
-      <audio
-        ref={audioRef}
-        src={activeLesson.audio?.url || undefined}
-        preload="metadata"
-        onPlay={() => { setIsSpeaking(true); setIsPaused(false); setAudioUsageCount((count) => count + 1); }}
-        onPause={() => { if (audioRef.current && audioRef.current.currentTime > 0) setIsPaused(true); }}
-        onEnded={() => { setIsSpeaking(false); setIsPaused(false); }}
-        onError={() => { setIsSpeaking(false); setIsPaused(false); }}
-        className="hidden"
-      />
       
       {/* 1. LEFT SIDE NAVIGATION DRAWER - ELEGANT MODERN SIDEBAR */}
       <aside className={`fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(88vw,20rem)] flex-shrink-0 flex-col overflow-hidden border-r border-stone-800/80 bg-gradient-to-b from-stone-900 via-stone-925 to-stone-950 font-sans text-stone-300 shadow-xl transition-transform duration-300 md:sticky md:top-0 md:z-20 md:h-screen md:w-72 md:translate-x-0 ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -672,7 +763,7 @@ export default function LearningPlayer({
           </button>
           
           <div className="flex items-center space-x-1.5 bg-stone-900/80 p-1 rounded-lg border border-stone-800">
-            <button 
+            <button
               onClick={handleToggleFavorite} 
               title={lang === 'ID' ? 'Sukai Skill Ini' : 'Add to Favorites'}
               className="p-1.5 rounded-md hover:bg-stone-800 transition-colors cursor-pointer"
@@ -737,18 +828,28 @@ export default function LearningPlayer({
                 {lang === 'ID' ? 'Progres' : 'Progress'}
               </span>
               <span className="font-extrabold text-brand-400 bg-brand-500/10 px-1.5 py-0.5 rounded text-[9px]">
-                {Math.round((progress.completedLessons.length / lessons.length) * 100)}%
+                {progressPercentage}%
               </span>
             </div>
             <div className="bg-stone-800/90 h-1.5 w-full rounded-full overflow-hidden p-0.5 border border-stone-700/40">
               <div 
                 className="bg-gradient-to-r from-brand-500 via-brand-400 to-brand-300 h-full rounded-full transition-all duration-500 shadow-sm shadow-brand-500/30"
-                style={{ width: `${(progress.completedLessons.length / lessons.length) * 100}%` }}
+                style={{ width: `${progressPercentage}%` }}
               />
             </div>
             <div className="flex justify-between items-center text-[9px] text-stone-500 mt-1.5">
               <span>{lang === 'ID' ? 'Modul Selesai' : 'Lessons Completed'}</span>
-              <span className="font-bold text-stone-300 font-mono">{progress.completedLessons.length} / {lessons.length}</span>
+              <span className="font-bold text-stone-300 font-mono">{completedProgressItems} / {totalProgressItems}</span>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="rounded-xl border border-stone-800 bg-stone-950/50 px-3 py-2">
+                <span className="block text-[9px] text-stone-500">{lang === 'ID' ? 'Pelajaran' : 'Lessons'}</span>
+                <span className="mt-0.5 block font-mono text-xs font-extrabold text-stone-100">{completedLessons.length}/{lessons.length}</span>
+              </div>
+              <div className="rounded-xl border border-stone-800 bg-stone-950/50 px-3 py-2">
+                <span className="block text-[9px] text-stone-500">{lang === 'ID' ? 'Milestone' : 'Milestones'}</span>
+                <span className="mt-0.5 block font-mono text-xs font-extrabold text-stone-100">{completedProgressItems}/{totalProgressItems}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -774,69 +875,19 @@ export default function LearningPlayer({
             <span className="text-[9px] font-bold text-stone-500 uppercase px-1.5 py-0.5 rounded bg-stone-800/50">{lang === 'ID' ? 'Awal' : 'Intro'}</span>
           </button>
 
-          {/* Step 2: Contract */}
-          <button
-            onClick={() => setActiveTab('contract')}
-            className={`w-full text-left px-3 py-2.5 rounded-xl font-medium transition-all flex items-center justify-between cursor-pointer group ${
-              activeTab === 'contract' 
-                ? 'bg-brand-500/15 text-brand-300 border border-brand-500/30 font-bold shadow-sm shadow-brand-500/5' 
-                : 'hover:bg-stone-800/60 text-stone-400 hover:text-stone-200 border border-transparent'
-            }`}
-          >
-            <div className="flex items-center space-x-2.5 min-w-0">
-              <div className={`p-1.5 rounded-lg transition-colors ${activeTab === 'contract' ? 'bg-brand-500 text-white font-bold' : 'bg-stone-800 text-stone-400 group-hover:text-stone-200'}`}>
-                <FileText className="h-3.5 w-3.5" />
-              </div>
-              <span className="truncate">2. {lang === 'ID' ? 'Kontrak Belajar' : 'Learning Contract'}</span>
-            </div>
-            {isUnlocked ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-400 flex-shrink-0" />
-            ) : (
-              <span className="text-[9px] font-extrabold text-brand-400 bg-brand-500/10 border border-brand-500/20 px-1.5 py-0.5 rounded animate-pulse">{lang === 'ID' ? 'TTD' : 'SIGN'}</span>
-            )}
-          </button>
-
-          {/* Step 3: Roadmap */}
-          <button
-            onClick={() => {
-              if (!isUnlocked) {
-                alert(lang === 'ID' ? 'Tandatangani Kontrak Belajar terlebih dahulu untuk menetapkan target hari ini!' : 'Sign the Learning Contract first to commit to today\'s goal!');
-                return;
-              }
-              setActiveTab('journey');
-            }}
-            className={`w-full text-left px-3 py-2.5 rounded-xl font-medium transition-all flex items-center justify-between cursor-pointer group ${
-              activeTab === 'journey' 
-                ? 'bg-brand-500/15 text-brand-300 border border-brand-500/30 font-bold shadow-sm shadow-brand-500/5' 
-                : 'hover:bg-stone-800/60 text-stone-400 hover:text-stone-200 border border-transparent'
-            } ${!isUnlocked ? 'opacity-40 cursor-not-allowed' : ''}`}
-          >
-            <div className="flex items-center space-x-2.5 min-w-0">
-              <div className={`p-1.5 rounded-lg transition-colors ${activeTab === 'journey' ? 'bg-brand-500 text-white font-bold' : 'bg-stone-800 text-stone-400 group-hover:text-stone-200'}`}>
-                <Map className="h-3.5 w-3.5" />
-              </div>
-              <span className="truncate">3. {lang === 'ID' ? 'Peta Pembelajaran' : 'Skill Roadmap'}</span>
-            </div>
-            {!isUnlocked ? (
-              <Lock className="h-3.5 w-3.5 text-stone-500" />
-            ) : (
-              <span className="text-[9px] font-bold text-stone-500 uppercase px-1.5 py-0.5 rounded bg-stone-800/50">{lang === 'ID' ? 'Peta' : 'Map'}</span>
-            )}
-          </button>
-
-          {/* Step 4: Core Lessons Section */}
+          {/* Core Lessons Section */}
           <div className="pt-3 pb-1 border-t border-stone-800/60 my-2">
             <div className="px-2 mb-2 flex items-center justify-between text-[9px] font-extrabold text-stone-400 uppercase tracking-widest">
               <span className="flex items-center gap-1.5">
                 <BookOpen className="h-3 w-3 text-brand-500" />
-                4. {lang === 'ID' ? 'Materi Inti' : 'Core Lessons'}
+                2. {lang === 'ID' ? 'Materi Inti' : 'Core Lessons'}
               </span>
               <span className="text-[9px] font-mono text-stone-500">{lessons.length} {lang === 'ID' ? 'Modul' : 'Modules'}</span>
             </div>
 
             <div className="space-y-1 pl-1">
               {lessons.map((less, index) => {
-                const isCompleted = progress.completedLessons.includes(less.id);
+                const isCompleted = completedLessonIds.has(less.id);
                 const isActive = activeTab === 'lessons' && activeLessonIdx === index;
                 return (
                   <button
@@ -872,6 +923,7 @@ export default function LearningPlayer({
               {lang === 'ID' ? 'Penerapan & Hasil' : 'Application & Output'}
             </span>
             
+            {hasPractice && (
             <button
               disabled={!isUnlocked}
               onClick={() => setActiveTab('practice')}
@@ -885,7 +937,7 @@ export default function LearningPlayer({
                 <div className={`p-1.5 rounded-lg transition-colors ${activeTab === 'practice' ? 'bg-brand-500 text-white font-bold' : 'bg-stone-800 text-stone-400 group-hover:text-stone-200'}`}>
                   <Target className="h-3.5 w-3.5" />
                 </div>
-                <span className="truncate">5. {lang === 'ID' ? 'Latihan Praktik' : 'Sandbox Practice'}</span>
+                <span className="truncate">3. {lang === 'ID' ? 'Latihan Praktik' : 'Practice'}</span>
               </div>
               {!isUnlocked ? (
                 <Lock className="h-3.5 w-3.5 text-stone-500" />
@@ -893,7 +945,9 @@ export default function LearningPlayer({
                 <span className="text-[8px] bg-brand-500/10 border border-brand-500/20 text-brand-400 px-1.5 py-0.5 rounded font-extrabold">{lang === 'ID' ? 'AKTIF' : 'ACTIVE'}</span>
               )}
             </button>
+            )}
 
+            {hasReflections && (
             <button
               disabled={!isUnlocked}
               onClick={() => setActiveTab('reflection')}
@@ -907,29 +961,13 @@ export default function LearningPlayer({
                 <div className={`p-1.5 rounded-lg transition-colors ${activeTab === 'reflection' ? 'bg-brand-500 text-white font-bold' : 'bg-stone-800 text-stone-400 group-hover:text-stone-200'}`}>
                   <Brain className="h-3.5 w-3.5" />
                 </div>
-                <span className="truncate">6. {lang === 'ID' ? 'Refleksi Pribadi' : 'Personal Reflection'}</span>
+                <span className="truncate">{3 + (hasPractice ? 1 : 0)}. {lang === 'ID' ? 'Refleksi Pribadi' : 'Personal Reflection'}</span>
               </div>
               {!isUnlocked && <Lock className="h-3.5 w-3.5 text-stone-500" />}
             </button>
+            )}
 
-            <button
-              disabled={!isUnlocked}
-              onClick={() => setActiveTab('actionPlan')}
-              className={`w-full text-left px-3 py-2.5 rounded-xl font-medium transition-all flex items-center justify-between cursor-pointer group ${
-                activeTab === 'actionPlan' 
-                  ? 'bg-brand-500/15 text-brand-300 border border-brand-500/30 font-bold shadow-sm' 
-                  : 'hover:bg-stone-800/60 text-stone-400 hover:text-stone-200 border border-transparent'
-              } ${!isUnlocked ? 'opacity-40 cursor-not-allowed' : ''}`}
-            >
-              <div className="flex items-center space-x-2.5 min-w-0">
-                <div className={`p-1.5 rounded-lg transition-colors ${activeTab === 'actionPlan' ? 'bg-brand-500 text-white font-bold' : 'bg-stone-800 text-stone-400 group-hover:text-stone-200'}`}>
-                  <Zap className="h-3.5 w-3.5" />
-                </div>
-                <span className="truncate">7. {lang === 'ID' ? 'Rencana Tindakan' : 'Field Action Plan'}</span>
-              </div>
-              {!isUnlocked && <Lock className="h-3.5 w-3.5 text-stone-500" />}
-            </button>
-
+            {hasSummary && (
             <button
               disabled={!isUnlocked}
               onClick={() => setActiveTab('summary')}
@@ -943,28 +981,11 @@ export default function LearningPlayer({
                 <div className={`p-1.5 rounded-lg transition-colors ${activeTab === 'summary' ? 'bg-brand-500 text-white font-bold' : 'bg-stone-800 text-stone-400 group-hover:text-stone-200'}`}>
                   <FileCheck className="h-3.5 w-3.5" />
                 </div>
-                <span className="truncate">8. {lang === 'ID' ? 'Ringkasan Eksekutif' : 'Executive Summary'}</span>
+                <span className="truncate">{3 + (hasPractice ? 1 : 0) + (hasReflections ? 1 : 0)}. {lang === 'ID' ? 'Ringkasan Eksekutif' : 'Executive Summary'}</span>
               </div>
               {!isUnlocked && <Lock className="h-3.5 w-3.5 text-stone-500" />}
             </button>
-
-            <button
-              disabled={!isUnlocked}
-              onClick={() => setActiveTab('references')}
-              className={`w-full text-left px-3 py-2.5 rounded-xl font-medium transition-all flex items-center justify-between cursor-pointer group ${
-                activeTab === 'references' 
-                  ? 'bg-brand-500/15 text-brand-300 border border-brand-500/30 font-bold shadow-sm' 
-                  : 'hover:bg-stone-800/60 text-stone-400 hover:text-stone-200 border border-transparent'
-              } ${!isUnlocked ? 'opacity-40 cursor-not-allowed' : ''}`}
-            >
-              <div className="flex items-center space-x-2.5 min-w-0">
-                <div className={`p-1.5 rounded-lg transition-colors ${activeTab === 'references' ? 'bg-brand-500 text-white font-bold' : 'bg-stone-800 text-stone-400 group-hover:text-stone-200'}`}>
-                  <BookMarked className="h-3.5 w-3.5" />
-                </div>
-                <span className="truncate">9. {lang === 'ID' ? 'Pusat Referensi' : 'Reference Center'}</span>
-              </div>
-              {!isUnlocked && <Lock className="h-3.5 w-3.5 text-stone-500" />}
-            </button>
+            )}
 
           </div>
         </nav>
@@ -974,7 +995,7 @@ export default function LearningPlayer({
           <div className="p-2.5 rounded-xl bg-stone-900 border border-stone-800/80 flex items-center justify-between text-[10px]">
             <div className="flex items-center space-x-2 text-stone-400">
               <Clock className="h-3.5 w-3.5 text-brand-400" />
-              <span>{lang === 'ID' ? 'Estimasi' : 'Est. Time'}: <strong className="text-stone-200 font-bold">{localizeDuration(skill.estimatedTime, lang)}</strong></span>
+              <span>{lang === 'ID' ? 'Estimasi Waktu Belajar' : 'Estimated Learning Time'}: <strong className="text-stone-200 font-bold">{localizeDuration(skill.estimatedTime, lang)}</strong></span>
             </div>
             <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               {localizeDifficulty(skill.difficulty, lang)}
@@ -985,7 +1006,7 @@ export default function LearningPlayer({
 
       {/* 2. MAIN WORKSPACE CONTAINER */}
       <main className="flex-grow flex flex-col min-w-0">
-        <header className={`sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b px-3 md:hidden ${darkMode || personalization.theme === 'dark' ? 'bg-stone-900 border-stone-800 text-white' : 'bg-white border-stone-200 text-stone-900'}`}>
+        <header className={`sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b px-3 md:hidden ${personalization.theme === 'dark' ? 'bg-stone-900 border-stone-800 text-white' : 'bg-white border-stone-200 text-stone-900'}`}>
           <button
             type="button"
             onClick={() => setIsMobileSidebarOpen(true)}
@@ -1002,30 +1023,20 @@ export default function LearningPlayer({
             {onLanguageChange && (
               <button onClick={() => onLanguageChange(lang === 'EN' ? 'ID' : 'EN')} className="rounded-lg border border-stone-200 px-2 py-1.5 text-[10px] font-bold dark:border-stone-700">{lang}</button>
             )}
-            {onToggleDarkMode && (
-              <button onClick={onToggleDarkMode} className="rounded-lg border border-stone-200 p-1.5 dark:border-stone-700" aria-label={lang === 'ID' ? 'Ganti mode warna' : 'Toggle color mode'}>
-                {darkMode || personalization.theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              </button>
-            )}
           </div>
         </header>
 
         {activeTab === 'lessons' && (
-          <nav className={`sticky top-14 z-20 flex gap-1 overflow-x-auto border-b px-3 py-2 md:hidden ${darkMode || personalization.theme === 'dark' ? 'border-stone-800 bg-stone-900' : 'border-stone-200 bg-white'}`} aria-label={lang === 'ID' ? 'Mode pembelajaran' : 'Learning modes'}>
-            {([
-              ['card', lang === 'ID' ? 'Bento Card' : 'Bento Cards'],
-              ['presentation', lang === 'ID' ? 'Slide' : 'Slides'],
-              ['reading', lang === 'ID' ? 'Artikel' : 'Article'],
-              ['listen', lang === 'ID' ? 'Audio' : 'Audio'],
-            ] as Array<[ContentMode, string]>).map(([mode, label]) => (
-              <button key={mode} type="button" onClick={() => setContentMode(mode)} className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[10px] font-bold ${contentMode === mode ? 'bg-brand-500 text-white' : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300'}`}>{label}</button>
+          <nav className={`sticky top-14 z-20 flex flex-wrap gap-1 border-b px-3 py-2 md:hidden ${personalization.theme === 'dark' ? 'border-stone-800 bg-stone-900' : 'border-stone-200 bg-white'}`} aria-label={lang === 'ID' ? 'Mode pembelajaran' : 'Learning modes'}>
+            {lessonContentModes.map(({ mode, label }) => (
+              <button key={mode} type="button" onClick={() => setContentMode(mode)} className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[10px] font-bold ${activeContentMode === mode ? 'bg-brand-500 text-white' : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300'}`}>{label}</button>
             ))}
           </nav>
         )}
         
         {/* HEADER TOOLBAR: MODE SWITCHERS & FLOATING TRIGGERS */}
         <header className={`hidden h-14 border-b px-4 sm:px-6 md:flex items-center justify-between flex-shrink-0 z-10 font-sans transition-colors ${
-          darkMode || personalization.theme === 'dark'
+          personalization.theme === 'dark'
             ? 'bg-stone-900 border-stone-800 text-stone-100'
             : 'bg-white border-stone-200 text-stone-900'
         }`}>
@@ -1042,48 +1053,21 @@ export default function LearningPlayer({
             {/* Display Modes (Only on lessons tab) */}
             {activeTab === 'lessons' && (
               <div className={`hidden sm:flex items-center p-0.5 rounded-lg border ${
-                darkMode || personalization.theme === 'dark' ? 'bg-stone-800 border-stone-700' : 'bg-stone-100 border-stone-200'
+                personalization.theme === 'dark' ? 'bg-stone-800 border-stone-700' : 'bg-stone-100 border-stone-200'
               }`}>
-                <button
-                  onClick={() => setContentMode('card')}
-                  className={`px-2.5 py-1 text-[10px] font-bold rounded-md cursor-pointer transition-all ${
-                    contentMode === 'card' 
-                      ? (darkMode || personalization.theme === 'dark' ? 'bg-stone-700 text-stone-100 shadow-sm' : 'bg-white shadow-sm text-stone-900') 
-                      : 'text-stone-500 hover:text-stone-700 dark:hover:text-stone-300'
-                  }`}
-                >
-                  {lang === 'ID' ? 'Bento Card' : 'Bento Cards'}
-                </button>
-                <button
-                  onClick={() => setContentMode('presentation')}
-                  className={`px-2.5 py-1 text-[10px] font-bold rounded-md cursor-pointer transition-all ${
-                    contentMode === 'presentation' 
-                      ? (darkMode || personalization.theme === 'dark' ? 'bg-stone-700 text-stone-100 shadow-sm' : 'bg-white shadow-sm text-stone-900') 
-                      : 'text-stone-500 hover:text-stone-700 dark:hover:text-stone-300'
-                  }`}
-                >
-                  {lang === 'ID' ? 'Slide' : 'Slides'}
-                </button>
-                <button
-                  onClick={() => setContentMode('reading')}
-                  className={`px-2.5 py-1 text-[10px] font-bold rounded-md cursor-pointer transition-all ${
-                    contentMode === 'reading' 
-                      ? (darkMode || personalization.theme === 'dark' ? 'bg-stone-700 text-stone-100 shadow-sm' : 'bg-white shadow-sm text-stone-900') 
-                      : 'text-stone-500 hover:text-stone-700 dark:hover:text-stone-300'
-                  }`}
-                >
-                  {lang === 'ID' ? 'Artikel' : 'Article'}
-                </button>
-                <button
-                  onClick={() => setContentMode('listen')}
-                  className={`px-2.5 py-1 text-[10px] font-bold rounded-md cursor-pointer transition-all ${
-                    contentMode === 'listen' 
-                      ? (darkMode || personalization.theme === 'dark' ? 'bg-stone-700 text-stone-100 shadow-sm' : 'bg-white shadow-sm text-stone-900') 
-                      : 'text-stone-500 hover:text-stone-700 dark:hover:text-stone-300'
-                  }`}
-                >
-                  Audio
-                </button>
+                {lessonContentModes.map(({ mode, label }) => (
+                  <button
+                    key={mode}
+                    onClick={() => setContentMode(mode)}
+                    className={`px-2.5 py-1 text-[10px] font-bold rounded-md cursor-pointer transition-all ${
+                      activeContentMode === mode
+                        ? (personalization.theme === 'dark' ? 'bg-stone-700 text-stone-100 shadow-sm' : 'bg-white shadow-sm text-stone-900')
+                        : 'text-stone-500 hover:text-stone-700 dark:hover:text-stone-300'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             )}
 
@@ -1095,7 +1079,7 @@ export default function LearningPlayer({
                 <button
                   onClick={() => onLanguageChange(lang === 'EN' ? 'ID' : 'EN')}
                   className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
-                    darkMode || personalization.theme === 'dark'
+                    personalization.theme === 'dark'
                       ? 'border-stone-700 bg-stone-800 text-stone-200 hover:bg-stone-700' 
                       : 'border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100'
                   }`}
@@ -1106,41 +1090,26 @@ export default function LearningPlayer({
                 </button>
               )}
 
-              {/* Light / Dark Mode Toggle */}
-              {onToggleDarkMode && (
-                <button
-                  onClick={onToggleDarkMode}
-                  className={`p-1.5 rounded-lg border text-xs flex items-center transition-all cursor-pointer ${
-                    darkMode || personalization.theme === 'dark'
-                      ? 'border-stone-700 bg-stone-800 text-brand-400 hover:bg-stone-700' 
-                      : 'border-stone-200 bg-stone-50 text-stone-600 hover:bg-stone-100'
-                  }`}
-                  title={lang === 'ID' ? 'Ganti Mode Gelap / Terang' : 'Toggle Dark Mode'}
-                >
-                  {darkMode || personalization.theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                </button>
-              )}
-
               {/* Personalization Toggle */}
               <button
-                onClick={() => { setPersonalizationOpen(!personalizationOpen); setAnalyticsOpen(false); }}
+                onClick={() => { setPersonalizationOpen(!personalizationOpen); setLearningTimeOpen(false); }}
                 title={lang === 'ID' ? 'Pengaturan tampilan' : 'Visual settings'}
                 className={`p-2 rounded-lg cursor-pointer transition-colors ${
                   personalizationOpen 
                     ? 'bg-brand-500/20 text-brand-500' 
-                    : (darkMode || personalization.theme === 'dark' ? 'text-stone-400 hover:bg-stone-800' : 'text-stone-500 hover:bg-stone-100')
+                    : (personalization.theme === 'dark' ? 'text-stone-400 hover:bg-stone-800' : 'text-stone-500 hover:bg-stone-100')
                 }`}
               >
                 <Sliders className="h-4.5 w-4.5" />
               </button>
 
-              {/* Analytics Toggle */}
+              {/* Learning Time Toggle */}
               <button
-                onClick={() => { setAnalyticsOpen(!analyticsOpen); setPersonalizationOpen(false); }}
-                title={lang === 'ID' ? 'Statistik fokus' : 'Focus stats'}
-                className={`p-2 rounded-lg cursor-pointer transition-colors ${analyticsOpen ? 'bg-stone-100 text-stone-900' : 'text-stone-500 hover:bg-stone-50'}`}
+                onClick={() => { setLearningTimeOpen(!learningTimeOpen); setPersonalizationOpen(false); }}
+                title={lang === 'ID' ? 'Waktu belajar' : 'Learning time'}
+                className={`p-2 rounded-lg cursor-pointer transition-colors ${learningTimeOpen ? 'bg-stone-100 text-stone-900' : 'text-stone-500 hover:bg-stone-50'}`}
               >
-                <Activity className="h-4.5 w-4.5" />
+                <Clock className="h-4.5 w-4.5" />
               </button>
 
               {/* AI Coach Sidebar toggle */}
@@ -1156,10 +1125,10 @@ export default function LearningPlayer({
           </div>
         </header>
 
-        {isSpeaking && activeTab === 'lessons' && (
+        {isSpeaking && activeTab === 'lessons' && activeLesson && (
           <div className="sticky top-[6.75rem] z-20 flex items-center gap-3 border-b border-brand-500/20 bg-stone-950 px-3 py-2 text-white shadow-sm md:top-0 md:px-6">
             <Volume2 className="h-4 w-4 flex-shrink-0 text-brand-400" />
-            <div className="min-w-0 flex-1"><p className="truncate text-[10px] font-bold">{activeLesson.audio?.title || activeLesson.title}</p><p className="text-[9px] text-stone-400">{lang === 'ID' ? 'Audio tetap diputar saat berpindah tampilan' : 'Audio continues while switching views'}</p></div>
+            <div className="min-w-0 flex-1"><p className="truncate text-[10px] font-bold">{activeLesson.title}</p><p className="text-[9px] text-stone-400">{lang === 'ID' ? 'Membacakan materi Reading saat berpindah tampilan' : 'Reading material continues while switching views'}</p></div>
             <button type="button" onClick={handleSpeak} className="grid h-8 w-8 place-items-center rounded-full bg-brand-500 text-white">{isPaused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}</button>
             <button type="button" onClick={handleStopSpeak} className="rounded-lg bg-stone-800 px-2 py-1 text-[9px] font-bold">{lang === 'ID' ? 'Hentikan' : 'Stop'}</button>
           </div>
@@ -1168,7 +1137,7 @@ export default function LearningPlayer({
         {/* PERSISTENT CONTENT CONTAINER */}
         <div className="flex-grow overflow-y-auto relative w-full max-w-5xl mx-auto px-3 py-5 sm:p-6 md:p-10">
           
-          {/* FLOATING ACTION BOXES (PERSONALIZATION & ANALYTICS OVERLAYS) */}
+          {/* FLOATING ACTION BOXES */}
           <AnimatePresence>
             {personalizationOpen && (
               <motion.div 
@@ -1186,7 +1155,7 @@ export default function LearningPlayer({
               </motion.div>
             )}
 
-            {analyticsOpen && (
+            {learningTimeOpen && (
               <motion.div 
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1194,15 +1163,8 @@ export default function LearningPlayer({
                 className="fixed inset-x-3 top-16 z-40 sm:absolute sm:inset-x-auto sm:top-4 sm:right-6 sm:z-20"
               >
                 <LiveAnalytics 
-                  completedLessonsCount={progress.completedLessons.length}
-                  totalLessonsCount={lessons.length}
-                  practiceAnswersCount={practiceAnswersCount}
-                  reflectionAnswersCount={reflectionAnswersCount}
-                  notesCount={notesCount}
-                  bookmarksCount={bookmarksCount}
-                  audioUsageCount={isSpeaking ? audioUsageCount + 1 : audioUsageCount}
-                  isCompleted={progress.isCompleted}
-                  onClose={() => setAnalyticsOpen(false)}
+                  learningSeconds={learningSeconds}
+                  onClose={() => setLearningTimeOpen(false)}
                   lang={lang}
                 />
               </motion.div>
@@ -1257,7 +1219,7 @@ export default function LearningPlayer({
 
                 {/* Hero Card with Cover Image & Overview Banner */}
                 <div className={`rounded-3xl border overflow-hidden shadow-lg transition-all ${
-                  darkMode || personalization.theme === 'dark'
+                  personalization.theme === 'dark'
                     ? 'bg-gradient-to-br from-stone-900 via-stone-900 to-stone-950 border-stone-800'
                     : 'bg-gradient-to-br from-white via-brand-50/20 to-stone-50 border-stone-200/90'
                 }`}>
@@ -1280,14 +1242,14 @@ export default function LearningPlayer({
                           {skill.title}
                         </h1>
                         <p className="text-xs text-stone-300 line-clamp-2 leading-relaxed">
-                          {skill.shortDescription}
+                          {skill.overview.headline}
                         </p>
                       </div>
 
                       <div className="flex items-center gap-2 bg-stone-950/80 backdrop-blur-md p-2 rounded-2xl border border-stone-800 flex-shrink-0">
                         <div className="text-center px-2.5 border-r border-stone-800">
                           <span className="text-brand-400 font-extrabold text-xs block leading-none">{localizeDuration(skill.estimatedTime, lang)}</span>
-                          <span className="text-[8px] text-stone-400 uppercase font-semibold">{lang === 'ID' ? 'Durasi' : 'Duration'}</span>
+                          <span className="text-[8px] text-stone-400 uppercase font-semibold">{lang === 'ID' ? 'Estimasi Waktu' : 'Est. Time'}</span>
                         </div>
                         <div className="text-center px-2.5 border-r border-stone-800">
                           <span className="text-stone-200 font-extrabold text-xs block leading-none">{lessons.length}</span>
@@ -1300,43 +1262,22 @@ export default function LearningPlayer({
                       </div>
                     </div>
                   </div>
-
-                  {/* Author & Reviewer Bar */}
-                  <div className="p-4 sm:p-5 border-t border-stone-200/60 dark:border-stone-800/80 flex flex-wrap items-center justify-between gap-4 text-xs">
-                    <div className="flex items-center space-x-3">
-                      <div className="h-9 w-9 rounded-full bg-brand-500/20 text-brand-500 border border-brand-500/30 flex items-center justify-center font-bold text-sm">
-                        {(skill.author || 'S')[0]}
-                      </div>
-                      <div>
-                        <p className="font-bold text-stone-900 dark:text-stone-100">{skill.author || 'Senior Domain Architect'}</p>
-                        <p className="text-[10px] text-stone-500 dark:text-stone-400">
-                          {lang === 'ID' ? 'Ditinjau oleh Dr. Harrison Sterling • Diperbarui 2 minggu lalu' : 'Reviewed by Dr. Harrison Sterling • Updated 2 weeks ago'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-2 text-xs text-stone-500 dark:text-stone-400">
-                      <Star className="h-4 w-4 fill-brand-400 text-brand-400" />
-                      <span className="font-extrabold text-stone-900 dark:text-stone-100">4.9 / 5.0</span>
-                      <span>(150+ {lang === 'ID' ? 'ulasan positif' : 'verified learners'})</span>
-                    </div>
-                  </div>
                 </div>
 
                 {/* Key KPI Metrics Cards */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className={`p-4 rounded-2xl border transition-all ${
-                    darkMode || personalization.theme === 'dark' ? 'bg-stone-900/60 border-stone-800' : 'bg-white border-stone-200 shadow-sm'
+                    personalization.theme === 'dark' ? 'bg-stone-900/60 border-stone-800' : 'bg-white border-stone-200 shadow-sm'
                   }`}>
                     <div className="flex items-center space-x-2 text-brand-500 mb-1.5">
                       <Clock className="h-4 w-4" />
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-stone-400">{lang === 'ID' ? 'Estimasi Waktu' : 'Est. Time'}</span>
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-stone-400">{lang === 'ID' ? 'Estimasi Waktu Belajar' : 'Estimated Learning Time'}</span>
                     </div>
                     <p className="text-sm font-extrabold text-stone-900 dark:text-stone-100">{localizeDuration(skill.estimatedTime, lang)}</p>
                   </div>
 
                   <div className={`p-4 rounded-2xl border transition-all ${
-                    darkMode || personalization.theme === 'dark' ? 'bg-stone-900/60 border-stone-800' : 'bg-white border-stone-200 shadow-sm'
+                    personalization.theme === 'dark' ? 'bg-stone-900/60 border-stone-800' : 'bg-white border-stone-200 shadow-sm'
                   }`}>
                     <div className="flex items-center space-x-2 text-brand-500 mb-1.5">
                       <Target className="h-4 w-4" />
@@ -1346,7 +1287,7 @@ export default function LearningPlayer({
                   </div>
 
                   <div className={`p-4 rounded-2xl border transition-all ${
-                    darkMode || personalization.theme === 'dark' ? 'bg-stone-900/60 border-stone-800' : 'bg-white border-stone-200 shadow-sm'
+                    personalization.theme === 'dark' ? 'bg-stone-900/60 border-stone-800' : 'bg-white border-stone-200 shadow-sm'
                   }`}>
                     <div className="flex items-center space-x-2 text-brand-500 mb-1.5">
                       <BookOpen className="h-4 w-4" />
@@ -1356,13 +1297,13 @@ export default function LearningPlayer({
                   </div>
 
                   <div className={`p-4 rounded-2xl border transition-all ${
-                    darkMode || personalization.theme === 'dark' ? 'bg-stone-900/60 border-stone-800' : 'bg-white border-stone-200 shadow-sm'
+                    personalization.theme === 'dark' ? 'bg-stone-900/60 border-stone-800' : 'bg-white border-stone-200 shadow-sm'
                   }`}>
                     <div className="flex items-center space-x-2 text-brand-500 mb-1.5">
                       <Brain className="h-4 w-4" />
                       <span className="text-[10px] font-extrabold uppercase tracking-wider text-stone-400">{lang === 'ID' ? 'Tantangan Praktik' : 'Challenges'}</span>
                     </div>
-                    <p className="text-sm font-extrabold text-stone-900 dark:text-stone-100">{practices.length} {lang === 'ID' ? 'Sandbox' : 'Practices'}</p>
+                    <p className="text-sm font-extrabold text-stone-900 dark:text-stone-100">{practices.length} {lang === 'ID' ? 'Latihan' : 'Practices'}</p>
                   </div>
                 </div>
 
@@ -1384,7 +1325,7 @@ export default function LearningPlayer({
                         <span className="px-2 py-0.5 rounded bg-red-500/10 text-red-600 dark:text-red-400 text-[9px] font-bold">{lang === 'ID' ? 'MASALAH' : 'PAIN POINT'}</span>
                       </div>
                       <p className="text-xs text-stone-700 dark:text-stone-300 leading-relaxed font-sans">
-                        {skill.problem}
+                        {skill.overview.problem}
                       </p>
                     </div>
 
@@ -1398,7 +1339,7 @@ export default function LearningPlayer({
                         <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[9px] font-bold">{lang === 'ID' ? 'HASIL' : 'OUTCOME'}</span>
                       </div>
                       <p className="text-xs text-stone-700 dark:text-stone-300 leading-relaxed font-sans">
-                        {skill.transformation}
+                        {skill.overview.transformation}
                       </p>
                     </div>
                   </div>
@@ -1419,7 +1360,7 @@ export default function LearningPlayer({
                       <div 
                         key={i} 
                         className={`p-5 rounded-2xl border space-y-2 transition-all hover:scale-[1.01] ${
-                          darkMode || personalization.theme === 'dark'
+                          personalization.theme === 'dark'
                             ? 'bg-stone-900/80 border-stone-800 text-stone-200' 
                             : 'bg-white border-stone-200 text-stone-800 shadow-sm'
                         }`}
@@ -1438,7 +1379,7 @@ export default function LearningPlayer({
 
                 {/* Section: Research Evidence Citation Box */}
                 <div className={`p-5 rounded-2xl border space-y-2 relative overflow-hidden ${
-                  darkMode || personalization.theme === 'dark'
+                  personalization.theme === 'dark'
                     ? 'bg-brand-500/5 border-brand-500/20 text-stone-200' 
                     : 'bg-gradient-to-r from-brand-50/80 to-stone-50 border-brand-500/20 text-stone-800 shadow-sm'
                 }`}>
@@ -1447,7 +1388,7 @@ export default function LearningPlayer({
                     <span>{lang === 'ID' ? 'Validasi Ilmiah & Bukti Pembelajaran' : 'Evidence-Backed Validation'}</span>
                   </div>
                   <p className="text-xs text-stone-700 dark:text-stone-300 leading-relaxed font-serif italic">
-                    "{skill.evidence}"
+                    "{skill.overview.evidence}"
                   </p>
                 </div>
 
@@ -1470,14 +1411,14 @@ export default function LearningPlayer({
 
                   <div className="space-y-3">
                     {lessons.map((less, index) => {
-                      const isCompleted = progress.completedLessons.includes(less.id);
+                      const isCompleted = completedLessonIds.has(less.id);
 
                       return (
                         <div
                           key={less.id}
                           onClick={() => openLesson(index)}
                           className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group ${
-                            darkMode || personalization.theme === 'dark'
+                            personalization.theme === 'dark'
                               ? 'bg-stone-900/60 border-stone-800 hover:border-brand-500/40'
                               : 'bg-white border-stone-200 hover:border-brand-500/40 shadow-sm'
                           } ${!isLessonAvailable(index) ? 'opacity-60 cursor-not-allowed' : ''}`}
@@ -1536,10 +1477,10 @@ export default function LearningPlayer({
                   </div>
 
                   <button
-                    onClick={() => setActiveTab('contract')}
+                    onClick={beginNextLesson}
                     className="w-full sm:w-auto px-7 py-3.5 bg-brand-500 hover:bg-brand-600 text-white font-extrabold rounded-2xl text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-lg shadow-brand-500/20 group"
                   >
-                    <span>{lang === 'ID' ? 'Lanjutkan ke Kontrak Belajar' : 'Proceed to Learning Contract'}</span>
+                    <span>{lang === 'ID' ? 'Mulai Lesson' : 'Start Lessons'}</span>
                     <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </button>
                 </div>
@@ -1565,13 +1506,13 @@ export default function LearningPlayer({
               <div className="space-y-6 animate-in fade-in duration-300">
                 <div className="space-y-2 text-center max-w-xl mx-auto">
                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-brand-500 bg-brand-500/10 px-2.5 py-1 rounded-full">
-                    Module 3: Map
+                    {lang === 'ID' ? 'Modul 3: Peta Pembelajaran' : 'Module 3: Map'}
                   </span>
                   <h2 className="text-3xl font-extrabold font-heading text-stone-950 tracking-tight leading-tight">
-                    The Learning Journey
+                    {lang === 'ID' ? 'Alur Pembelajaran' : 'The Learning Journey'}
                   </h2>
                   <p className="text-xs text-stone-500 leading-relaxed">
-                    View the visual skill pipelines. Progress step-by-step from conceptual theory to active practical mastery.
+                    {lang === 'ID' ? 'Ikuti alur pembelajaran secara bertahap, dari konsep hingga penerapan nyata.' : 'View the visual skill pipelines. Progress step-by-step from conceptual theory to active practical mastery.'}
                   </p>
                 </div>
 
@@ -1583,14 +1524,14 @@ export default function LearningPlayer({
                       <Check className="h-2.5 w-2.5 text-white" />
                     </div>
                     <div>
-                      <h4 className="text-xs font-bold text-stone-900 uppercase">1. Why This Matters</h4>
+                      <h4 className="text-xs font-bold text-stone-900 uppercase">1. {lang === 'ID' ? 'Mengapa Ini Penting' : 'Why This Matters'}</h4>
                       <p className="text-[11px] text-stone-500 leading-normal mt-0.5">{lang === 'ID' ? 'Pahami materi secara berurutan, kuasai konsep, lalu terapkan pada situasi nyata.' : 'Follow the lessons in order, master each concept, and apply it to a real situation.'}</p>
                     </div>
                   </div>
 
                   {/* Step 2: Core Concept Lessons */}
                   {lessons.map((less, idx) => {
-                    const isCompleted = progress.completedLessons.includes(less.id);
+                    const isCompleted = completedLessonIds.has(less.id);
                     return (
                       <div key={less.id} className="relative">
                         <div className={`absolute -left-[31px] top-0.5 h-4 w-4 rounded-full border-2 ${isCompleted ? 'bg-emerald-500 border-emerald-500 flex items-center justify-center' : 'bg-white border-stone-300'}`}>
@@ -1598,16 +1539,16 @@ export default function LearningPlayer({
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <h4 className="text-xs font-bold text-stone-900 uppercase">2. Lesson: {less.title}</h4>
+                            <h4 className="text-xs font-bold text-stone-900 uppercase">2. {lang === 'ID' ? 'Pelajaran' : 'Lesson'}: {less.title}</h4>
                             {isCompleted && <span className="text-[8px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">{lang === 'ID' ? 'DIKUASAI' : 'MASTERED'}</span>}
                           </div>
-                          <p className="text-[11px] text-stone-500 leading-normal mt-0.5">Goal: {less.learningObjective}</p>
+                          <p className="text-[11px] text-stone-500 leading-normal mt-0.5">{lang === 'ID' ? 'Tujuan' : 'Goal'}: {less.learningObjective}</p>
                           <button
                             disabled={!isLessonAvailable(idx)}
                             onClick={() => openLesson(idx)}
                             className="text-[10px] text-brand-600 hover:text-brand-700 font-extrabold mt-1.5 cursor-pointer block disabled:cursor-not-allowed disabled:text-stone-400"
                           >
-                            {isLessonAvailable(idx) ? 'Launch Lesson Card →' : 'Complete previous lesson first'}
+                            {isLessonAvailable(idx) ? (lang === 'ID' ? 'Buka Pelajaran →' : 'Launch Lesson Card →') : (lang === 'ID' ? 'Selesaikan pelajaran sebelumnya terlebih dahulu' : 'Complete previous lesson first')}
                           </button>
                         </div>
                       </div>
@@ -1618,7 +1559,7 @@ export default function LearningPlayer({
                   <div className="relative">
                     <div className="absolute -left-[31px] top-0.5 h-4 w-4 rounded-full border-2 bg-white border-stone-300" />
                     <div>
-                      <h4 className="text-xs font-bold text-stone-900 uppercase">3. Practicing Sandbox</h4>
+                      <h4 className="text-xs font-bold text-stone-900 uppercase">3. {lang === 'ID' ? 'Latihan Praktik' : 'Practice Sandbox'}</h4>
                       <p className="text-[11px] text-stone-500 leading-normal mt-0.5">{lang === 'ID' ? 'Uji pemahaman melalui latihan interaktif dengan dukungan AI.' : 'Test your understanding through interactive exercises with AI support.'}</p>
                     </div>
                   </div>
@@ -1627,7 +1568,7 @@ export default function LearningPlayer({
                   <div className="relative">
                     <div className="absolute -left-[31px] top-0.5 h-4 w-4 rounded-full border-2 bg-white border-stone-300" />
                     <div>
-                      <h4 className="text-xs font-bold text-stone-900 uppercase">4. Action Plan</h4>
+                      <h4 className="text-xs font-bold text-stone-900 uppercase">4. {lang === 'ID' ? 'Rencana Tindakan' : 'Action Plan'}</h4>
                       <p className="text-[11px] text-stone-500 leading-normal mt-0.5">{lang === 'ID' ? 'Susun target untuk hari ini, minggu ini, dan bulan ini.' : 'Set targets for today, this week, and this month.'}</p>
                     </div>
                   </div>
@@ -1639,7 +1580,7 @@ export default function LearningPlayer({
                     onClick={beginNextLesson}
                     className="px-6 py-3 bg-stone-950 hover:bg-stone-850 text-[#f8fbff] font-bold rounded-xl text-xs cursor-pointer"
                   >
-                    Enter Core Lessons
+                    {lang === 'ID' ? 'Masuk ke Materi Inti' : 'Enter Core Lessons'}
                   </button>
                 </div>
               </div>
@@ -1648,19 +1589,22 @@ export default function LearningPlayer({
             {/* PHASE 4: CORE LESSON WORKSPACE */}
             {activeTab === 'lessons' && (
               <div className="space-y-8 animate-in fade-in duration-300">
+                {!activeLesson && (
+                  <div className={`${getSubCardClass()} rounded-2xl border p-6 text-sm text-stone-500`}>
+                    {lang === 'ID' ? 'Belum ada lesson untuk skill ini.' : 'This skill has no lessons yet.'}
+                  </div>
+                )}
                 
-                {/* 4A. BENTO CARD MODE */}
-                {contentMode === 'card' && (
+                {/* 4A. FLASHCARD MODE */}
+                {activeLesson?.flashcards?.length && activeContentMode === 'flashcards' && (
                   <article className="mx-auto max-w-5xl space-y-5">
-                    
-                    {/* Lesson header and reading prompt */}
                     <header className={`${getSubCardClass()} rounded-3xl border p-6 sm:p-8`}>
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <span className="inline-flex items-center gap-2 rounded-full bg-brand-500/10 px-3 py-1 text-[9px] font-extrabold uppercase tracking-[0.16em] text-brand-600 dark:text-brand-300">
                           <BookOpen className="h-3.5 w-3.5" />
                           {lang === 'ID' ? 'Pelajaran' : 'Lesson'} {String(activeLessonIdx + 1).padStart(2, '0')}
                         </span>
-                        <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-stone-400">{lang === 'ID' ? 'Pelajaran inti' : 'Core lesson'}</span>
+                        <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-stone-400">{lang === 'ID' ? 'Kartu Belajar' : 'Flashcards'}</span>
                       </div>
                       <h2 className="mt-5 text-3xl font-extrabold font-heading tracking-tight leading-tight text-stone-950 dark:text-white sm:text-4xl">
                         {activeLesson.title}
@@ -1668,196 +1612,34 @@ export default function LearningPlayer({
                       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-stone-500 dark:text-stone-300">
                         <span className="font-bold text-stone-800 dark:text-stone-100">{lang === 'ID' ? 'Tujuan belajar:' : 'Learning objective:'}</span> {activeLesson.learningObjective}
                       </p>
-                      <div className="mt-6 border-t border-brand-500/15 pt-5">
-                        <div className="rounded-2xl border border-brand-500/20 bg-brand-50/60 px-5 py-4 dark:bg-brand-950/25">
-                          <span className="text-[9px] font-extrabold uppercase tracking-[0.15em] text-brand-700 dark:text-brand-300">{lang === 'ID' ? 'Renungkan sebelum melanjutkan' : 'Reflect before you continue'}</span>
-                          <p className="mt-2 text-sm font-semibold leading-relaxed text-stone-900 dark:text-stone-100 italic font-serif">
-                            "{activeLesson.reflectionPrompt || activeLesson.learningObjective}"
-                          </p>
-                        </div>
-                      </div>
                     </header>
 
-                    {activeLesson.bentoCards?.length ? (
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        {activeLesson.bentoCards.map((card) => (
-                          <section key={card.id} className={`min-h-36 rounded-2xl border p-5 sm:p-6 ${card.wide ? 'sm:col-span-2' : ''} ${bentoToneClasses[card.tone || 'default']}`}>
-                            <span className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-brand-500">{card.label}</span>
-                            {card.title && <h3 className="mt-2 text-lg font-bold font-heading">{card.title}</h3>}
-                            <p className="mt-2 whitespace-pre-line text-sm leading-relaxed">{card.content}</p>
-                          </section>
-                        ))}
-                      </div>
-                    ) : (
-                      <>
-
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      {/* Big Picture & Definition */}
-                      <div className={`${getSubCardClass()} min-h-36 rounded-2xl border p-5 sm:p-6 space-y-2`}>
-                        <span className="text-[9px] font-extrabold text-stone-400 uppercase block">{lang === 'ID' ? 'Gambaran Besar' : 'The Big Picture'}</span>
-                        <p className="text-sm leading-relaxed font-sans">{activeLesson.bigPicture}</p>
-                      </div>
-                      <div className={`${getSubCardClass()} min-h-36 rounded-2xl border border-brand-500/20 p-5 sm:p-6 space-y-2 bg-brand-500/[0.02]`}>
-                        <span className="text-[9px] font-extrabold text-brand-600 dark:text-brand-300 uppercase block">{lang === 'ID' ? 'Definisi Inti' : 'The Core Definition'}</span>
-                        <p className="text-sm leading-relaxed font-semibold font-sans">{activeLesson.definition}</p>
-                      </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {activeLesson.flashcards.map((card, index) => (
+                          <button
+                            type="button"
+                            key={card.id}
+                            onClick={() => setFlashcardFlipped((current) => ({ ...current, [card.id]: !current[card.id] }))}
+                            className={`${getSubCardClass()} min-h-40 rounded-2xl border p-5 text-left sm:p-6`}
+                          >
+                            <span className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-brand-500">Flashcard {index + 1}</span>
+                            <p className="mt-3 text-sm font-semibold leading-relaxed">
+                              {flashcardFlipped[card.id] ? card.answer : card.question}
+                            </p>
+                            <span className="mt-5 block text-[9px] font-bold uppercase text-stone-400">
+                              {flashcardFlipped[card.id]
+                                ? (lang === 'ID' ? 'Jawaban · ketuk untuk melihat pertanyaan' : 'Answer · tap to view question')
+                                : (lang === 'ID' ? 'Pertanyaan · ketuk untuk melihat jawaban' : 'Question · tap to view answer')}
+                            </span>
+                          </button>
+                      ))}
                     </div>
-
-                    {/* Why It Matters & Somatic Analogy */}
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <div className={`${getSubCardClass()} min-h-36 rounded-2xl border p-5 sm:p-6 space-y-2`}>
-                        <span className="text-[9px] font-extrabold text-stone-400 uppercase block">{lang === 'ID' ? 'Mengapa Penting' : 'Why It Matters'}</span>
-                        <p className="text-sm leading-relaxed font-sans">{activeLesson.whyItMatters}</p>
-                      </div>
-                      <div className={`${getSomaticAnalogyClass()} min-h-36 rounded-2xl border p-5 sm:p-6 space-y-2`}>
-                        <span className="text-[9px] font-extrabold text-brand-400 uppercase block">{lang === 'ID' ? 'Analogi Praktis' : 'Practical Analogy'}</span>
-                        <p className="text-sm leading-relaxed italic font-serif">"{activeLesson.analogy}"</p>
-                      </div>
-                    </div>
-
-                    {/* Visual Diagram Display */}
-                    {hasVisualContent && activeLesson.visualData && (
-                      <div className={`${getSubCardClass()} rounded-2xl border p-5 sm:p-6 space-y-4`}>
-                        <h3 className="text-xs font-extrabold text-stone-950 uppercase border-b border-stone-100 pb-2">
-                          {activeLesson.visualData.title}
-                        </h3>
-
-                        {/* Comparison Split */}
-                        {activeLesson.visualType === 'comparison' && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-sans">
-                            <div className="p-4 bg-red-500/[0.03] border border-red-500/10 rounded-xl space-y-2">
-                              <span className="font-extrabold text-red-700 block uppercase text-[9px]">{activeLesson.visualData.leftTitle}</span>
-                              <ul className="space-y-1 list-disc list-inside text-stone-600 text-[11px]">
-                                {activeLesson.visualData.leftItems?.map((it, idx) => <li key={idx}>{it}</li>)}
-                              </ul>
-                            </div>
-                            <div className="p-4 bg-emerald-500/[0.03] border border-emerald-500/10 rounded-xl space-y-2">
-                              <span className="font-extrabold text-emerald-700 block uppercase text-[9px]">{activeLesson.visualData.rightTitle}</span>
-                              <ul className="space-y-1 list-disc list-inside text-stone-600 text-[11px]">
-                                {activeLesson.visualData.rightItems?.map((it, idx) => <li key={idx}>{it}</li>)}
-                              </ul>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Node Flowchart Diagram */}
-                        {activeLesson.visualType === 'diagram' && (
-                          <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                            {activeLesson.visualData.nodes?.map((node, i) => (
-                              <div key={i} className="p-3 bg-stone-50 border border-stone-200 rounded-xl space-y-0.5">
-                                <span className="font-bold text-stone-900 block truncate">{node.label}</span>
-                                <span className="text-[9px] text-stone-400 block truncate">{node.sub}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Workflow list */}
-                        {activeLesson.visualType === 'workflow' && (
-                          <div className="space-y-3 font-sans">
-                            {activeLesson.visualData.steps?.map((st, i) => (
-                              <div key={i} className="flex gap-3 items-start">
-                                <span className="h-5 w-5 rounded-full bg-stone-900 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i+1}</span>
-                                <div className="space-y-0.5">
-                                  <span className="font-bold text-xs text-stone-900">{st.label}</span>
-                                  <p className="text-[11px] text-stone-500">{st.desc}</p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* How It Works & Real Example */}
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <div className={`${getSubCardClass()} rounded-2xl border p-5 sm:p-6 space-y-3`}>
-                        <span className="text-[9px] font-extrabold text-stone-400 uppercase block">{lang === 'ID' ? 'Cara Kerja (Langkah)' : 'How It Works (Steps)'}</span>
-                        <ol className="list-decimal list-inside text-xs text-stone-700 space-y-1.5 font-sans">
-                          {activeLesson.howItWorks?.map((step, idx) => (
-                            <li key={idx} className="leading-relaxed"><span className="font-semibold text-stone-900">{step}</span></li>
-                          ))}
-                        </ol>
-                      </div>
-                      <div className={`${getSubCardClass()} rounded-2xl border p-5 sm:p-6 space-y-2 bg-stone-50/50`}>
-                        <span className="text-[9px] font-extrabold text-stone-400 uppercase block">{lang === 'ID' ? 'Studi Kasus Nyata' : 'Real-World Case Study'}</span>
-                        <p className="text-xs leading-relaxed font-serif italic text-stone-700">
-                          "{activeLesson.realExample}"
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Common Mistakes */}
-                    <div className="rounded-2xl border border-red-200/50 bg-red-50/30 p-5 sm:p-6 space-y-2">
-                      <span className="text-[9px] font-extrabold text-red-600 uppercase block">{lang === 'ID' ? 'Kesalahan Umum' : 'Common Pitfalls'}</span>
-                      <ul className="space-y-1 list-disc list-inside text-xs text-stone-700 font-sans">
-                        {activeLesson.commonMistakes?.map((mist, idx) => <li key={idx}>{mist}</li>)}
-                      </ul>
-                    </div>
-
-                    {/* Ultimate Takeaway & Immediate Action Checklist */}
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.02] p-5 sm:p-6 space-y-2">
-                        <span className="text-[9px] font-extrabold text-emerald-600 uppercase block">{lang === 'ID' ? 'Inti Pelajaran' : 'The Core Takeaway'}</span>
-                        <p className="text-xs font-bold text-emerald-950 font-sans leading-relaxed">{activeLesson.keyTakeaway}</p>
-                      </div>
-
-                      <div className={`${getSubCardClass()} rounded-2xl border p-5 sm:p-6 space-y-2`}>
-                        <span className="text-[9px] font-extrabold text-stone-400 uppercase block">{lang === 'ID' ? 'Daftar Penguasaan Materi' : 'Lesson Mastery Checklist'}</span>
-                        <div className="space-y-2">
-                          {activeLesson.checklist?.map((item, idx) => (
-                            <label key={idx} className="flex items-center gap-2 text-xs font-sans cursor-pointer text-stone-700 select-none">
-                              <input 
-                                type="checkbox" 
-                                checked={checklistChecked[`${activeLesson.id}-${idx}`] || false}
-                                onChange={() => setChecklistChecked(prev => ({ ...prev, [`${activeLesson.id}-${idx}`]: !prev[`${activeLesson.id}-${idx}`] }))}
-                                className="rounded border-stone-300 text-brand-500 focus:ring-brand-500/20"
-                              />
-                              <span>{item}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Mini Practice Sandbox (Lesson specific) */}
-                    <div className={`${getSubCardClass()} rounded-2xl border p-5 sm:p-6 space-y-3`}>
-                      <span className="text-[9px] font-extrabold text-brand-600 uppercase tracking-wider block">{lang === 'ID' ? 'Simulasi Latihan Singkat' : 'Mini Lesson Practice Simulator'}</span>
-                      <div className="space-y-1">
-                        <h4 className="text-xs font-bold text-stone-900">{activeLesson.practiceChallenge?.title}</h4>
-                        <p className="text-[11px] text-stone-500 leading-normal font-sans">{activeLesson.practiceChallenge?.instruction}</p>
-                      </div>
-                      <textarea
-                        rows={2}
-                        value={miniPracticeAnswers[activeLesson.id] || ''}
-                        onChange={(e) => setMiniPracticeAnswers(prev => ({ ...prev, [activeLesson.id]: e.target.value }))}
-                        placeholder={lang === 'ID' ? 'Tulis jawaban latihan Anda...' : 'Type your practice response...'}
-                        className="w-full p-2 border border-stone-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand-500/20 bg-[#f8fbff]"
-                      />
-                      <button
-                        onClick={() => handleEvaluateMiniPractice(activeLesson.id)}
-                        className="px-3 py-1 bg-stone-950 hover:bg-stone-850 text-white text-[10px] font-bold rounded-lg cursor-pointer"
-                      >
-                        Submit Response
-                      </button>
-                      {miniPracticeFeedback[activeLesson.id] && (
-                        <div className="p-3 bg-stone-50 border rounded-lg text-[11px] text-stone-600 leading-normal font-sans italic">
-                          {miniPracticeFeedback[activeLesson.id]}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Interactive Component Playground */}
-                    <LessonComponentsPlayground lang={lang} />
-
-                      </>
-                    )}
 
                   </article>
                 )}
 
                 {/* 4B. PRESENTATION MODE */}
-                {contentMode === 'presentation' && (
+                {activeLesson && activeSlide && activeContentMode === 'presentation' && (
                   <div 
                     onMouseMove={(e) => {
                       if (!isLaserActive) return;
@@ -1953,12 +1735,11 @@ export default function LearningPlayer({
                 )}
 
                 {/* 4C. IMMERSIVE READING MODE */}
-                {contentMode === 'reading' && (
+                {activeLesson?.article && activeContentMode === 'reading' && (
                   <article className="prose max-w-2xl mx-auto space-y-6 font-sans">
                     <div className="flex justify-between items-center border-b border-stone-200/50 pb-3">
                       <span className="text-[10px] font-bold text-stone-400 uppercase">{lang === 'ID' ? 'Pembaca Buku Interaktif' : 'Interactive Book Reader'}</span>
                       <div className="flex gap-2">
-                        
                         {/* Highlights highlight key */}
                         <button
                           onClick={() => handleToggleBookmarkLesson(activeLesson.id)}
@@ -1990,16 +1771,16 @@ export default function LearningPlayer({
                 )}
 
                 {/* 4D. SYNTHETIC LISTEN MODE */}
-                {contentMode === 'listen' && (
-                  <div className="bg-stone-900 text-stone-200 p-5 sm:p-8 rounded-2xl border border-stone-800 space-y-6 max-w-xl mx-auto font-sans">
+                {activeLesson?.article && activeContentMode === 'listen' && (
+                  <div className="bg-stone-900 text-stone-200 p-5 sm:p-8 rounded-2xl border border-stone-800 space-y-6 max-w-2xl mx-auto font-sans">
                     
                     {/* Header */}
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-2">
                         <Volume2 className="h-5 w-5 text-brand-400" />
                         <div>
-                          <h4 className="text-xs font-bold text-white">{activeLesson.audio?.title || (lang === 'ID' ? `Audio ${activeLesson.title}` : `${activeLesson.title} Audio`)}</h4>
-                          <span className="text-[9px] text-stone-500">{activeLesson.audio?.url ? (lang === 'ID' ? 'Audio rekaman materi' : 'Recorded lesson audio') : (lang === 'ID' ? 'Pembaca suara otomatis' : 'Automatic voice reader')}{activeLesson.audio?.duration ? ` · ${activeLesson.audio.duration}` : ''}</span>
+                          <h4 className="text-base font-bold text-white">{activeLesson.title}</h4>
+                          <span className="text-[10px] text-stone-500">{lang === 'ID' ? 'Text-to-Speech otomatis dari materi Artikel' : 'Automatic Text-to-Speech from the Reading material'}</span>
                         </div>
                       </div>
 
@@ -2025,15 +1806,32 @@ export default function LearningPlayer({
                       ))}
                     </div>
 
-                    {activeLesson.audio?.transcript && (
-                      <details className="rounded-xl border border-stone-800 bg-stone-950/40 p-3">
-                        <summary className="cursor-pointer text-[10px] font-bold uppercase text-brand-400">{lang === 'ID' ? 'Lihat transkrip' : 'View transcript'}</summary>
-                        <p className="mt-3 max-h-44 overflow-y-auto whitespace-pre-line text-xs leading-6 text-stone-400">{activeLesson.audio.transcript}</p>
-                      </details>
-                    )}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-[10px] font-semibold text-stone-400">
+                        <span>{lang === 'ID' ? 'Progres pembacaan' : 'Reading progress'}</span>
+                        <span>{formatSpeechTime(speechElapsed)} / {formatSpeechTime(speechDuration)}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-stone-800">
+                        <div className="h-full rounded-full bg-brand-500 transition-[width] duration-1000" style={{ width: `${Math.min(100, (speechElapsed / speechDuration) * 100)}%` }} />
+                      </div>
+                    </div>
 
                     {/* Audio Customization Parameters */}
-                    <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div className="grid grid-cols-1 gap-4 text-xs sm:grid-cols-3">
+                      <div className="space-y-1">
+                        <span className="text-[9px] font-bold text-stone-500 uppercase">{lang === 'ID' ? 'Pilihan Voice' : 'Voice language'}</span>
+                        <select
+                          value={voiceLanguage}
+                          onChange={(e) => {
+                            handleStopSpeak();
+                            setVoiceLanguage(e.target.value as 'id-ID' | 'en-US');
+                          }}
+                          className="w-full p-2 border border-stone-800 bg-stone-950 rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-brand-500 text-stone-300"
+                        >
+                          <option value="id-ID">Bahasa Indonesia</option>
+                          <option value="en-US">English</option>
+                        </select>
+                      </div>
                       
                       {/* Voice speed selector */}
                       <div className="space-y-1">
@@ -2101,19 +1899,28 @@ export default function LearningPlayer({
                       <p className="text-[9px] text-stone-500 leading-none">{lang === 'ID' ? 'Tulis ringkasan agar lebih mudah diingat' : 'Draft a summary for long-term retention'}</p>
                     </div>
                     <button
+                      type="button"
                       onClick={handleSaveNotes}
                       className="px-3 py-1 bg-stone-950 hover:bg-stone-850 text-[#f8fbff] text-[10px] font-bold rounded-lg cursor-pointer transition-colors"
                     >
-                      Commit Notes
+                      {lang === 'ID' ? 'Simpan Catatan' : 'Commit Notes'}
                     </button>
                   </div>
                   <textarea
                     rows={2}
                     value={notesText}
-                    onChange={(e) => setNotesText(e.target.value)}
+                    onChange={(e) => {
+                      setNotesText(e.target.value);
+                      setNoteSaveStatus(null);
+                    }}
                     placeholder={lang === 'ID' ? 'Tulis ringkasan dan poin penting Anda...' : 'Write your summary and key takeaways...'}
                     className="w-full p-2.5 border border-stone-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand-500/20 bg-[#f8fbff] text-stone-800"
                   />
+                  {noteSaveStatus && (
+                    <div className={`p-3 rounded-xl border text-xs font-sans ${noteSaveStatus.tone === 'success' ? 'bg-emerald-500/[0.03] border-emerald-500/20 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                      {noteSaveStatus.message}
+                    </div>
+                  )}
                 </div>
 
                 {/* Footer Next button controls */}
@@ -2123,13 +1930,13 @@ export default function LearningPlayer({
                     onClick={() => setActiveLessonIdx(activeLessonIdx - 1)}
                     className="px-4 py-2 bg-stone-100 hover:bg-stone-200 rounded-lg text-xs text-stone-700 font-bold cursor-pointer disabled:opacity-40"
                   >
-                    Previous Lesson
+                    {lang === 'ID' ? 'Pelajaran Sebelumnya' : 'Previous Lesson'}
                   </button>
                   <button
                     onClick={handleCompleteLesson}
                     className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg cursor-pointer flex items-center gap-1 transition-colors"
                   >
-                    <span>{activeLessonIdx === lessons.length - 1 ? 'Go to Sandbox Practice' : 'Complete & Continue'}</span>
+                    <span>{activeLessonIdx === lessons.length - 1 ? (hasPractice ? (lang === 'ID' ? 'Lanjut ke Latihan' : 'Continue to Practice') : hasReflections ? (lang === 'ID' ? 'Lanjut ke Refleksi' : 'Continue to Reflection') : (lang === 'ID' ? 'Lanjut ke Ringkasan' : 'Continue to Summary')) : (lang === 'ID' ? 'Selesaikan & Lanjutkan' : 'Complete & Continue')}</span>
                     <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
@@ -2142,89 +1949,25 @@ export default function LearningPlayer({
               <div className="space-y-8 animate-in fade-in duration-300">
                 <div className="space-y-2 text-center max-w-xl mx-auto">
                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-brand-500 bg-brand-500/10 px-2.5 py-1 rounded-full">
-                    Module 5: Active sandbox
+                    {lang === 'ID' ? 'Modul 5: Latihan Praktik' : 'Module 5: Active Practice'}
                   </span>
                   <h2 className="text-3xl font-extrabold font-heading text-stone-950 tracking-tight leading-tight">
-                    Practicing Sandbox
+                    {lang === 'ID' ? 'Latihan Praktik' : 'Practice Sandbox'}
                   </h2>
                   <p className="text-xs text-stone-500 leading-relaxed">
-                    Work through dynamic client scenarios, flashcard memory flips, and matching exercises. Get AI coaching.
+                    {lang === 'ID' ? 'Kerjakan latihan yang tersedia untuk menerapkan materi pembelajaran.' : 'Complete the available practice to apply this learning material.'}
                   </p>
                 </div>
 
-                {/* Subsections: Quizzes & flashcards */}
                 <div className="space-y-6">
-                  
-                  {/* Matching terms game */}
-                  <div className={`${getSubCardClass()} p-5 rounded-2xl border space-y-4`}>
-                    <div className="space-y-1">
-                      <span className="text-[9px] font-extrabold text-stone-400 block uppercase">{lang === 'ID' ? 'Latihan Mencocokkan' : 'Matching Sandbox'}</span>
-                      <h4 className="text-xs font-bold text-stone-950">{lang === 'ID' ? 'Cocokkan istilah dengan definisinya' : 'Match each term with its definition'}</h4>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      
-                      {/* Left list: terms */}
-                      <div className="space-y-2">
-                        <span className="text-[9px] font-bold text-stone-400 block uppercase">{lang === 'ID' ? 'Istilah' : 'Vocabulary Term'}</span>
-                        {['An Anchor Value', 'Decoy dominance', 'Reactance limit'].map((term) => (
-                          <button
-                            key={term}
-                            onClick={() => handleTermClick(term)}
-                            className={`w-full text-left p-3 border rounded-xl text-xs font-bold transition-all ${selectedTerm === term ? 'border-brand-500 bg-brand-50 text-brand-800' : matchedPairs[term] ? 'border-emerald-200 bg-emerald-500/10 text-emerald-900 line-through' : 'border-stone-200 bg-white hover:bg-stone-50'}`}
-                          >
-                            {term}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Right list: definitions */}
-                      <div className="space-y-2">
-                        <span className="text-[9px] font-bold text-stone-400 block uppercase">{lang === 'ID' ? 'Definisi' : 'Definition'}</span>
-                        {['Rejection urge caused by force', 'Aspirational starting tier', 'Tier pricing highlighting standard deals'].map((def) => (
-                          <button
-                            key={def}
-                            onClick={() => handleTermClick(def)}
-                            className={`w-full text-left p-3 border rounded-xl text-xs font-semibold transition-all ${selectedTerm === def ? 'border-brand-500 bg-brand-50 text-brand-800' : Object.values(matchedPairs).includes(def) ? 'border-emerald-200 bg-emerald-500/10 text-emerald-900' : 'border-stone-200 bg-white hover:bg-stone-50'}`}
-                          >
-                            {def}
-                          </button>
-                        ))}
-                      </div>
-
-                    </div>
-                  </div>
-
-                  {/* Flashcards flip sandbox */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {[
-                      { id: 'fc1', front: 'What is Jack Brehms Theory of Reactance?', back: 'Reactance is the psychological pushback that happens when a prospect feels forced into a Yes/No pricing box.' },
-                      { id: 'fc2', front: 'How does the Decoy effect steer choices?', back: 'By making the target middle option look vastly superior in features/price ratio compared to standard tiers.' }
-                    ].map((card) => {
-                      const isFlipped = flashcardFlipped[card.id] || false;
-                      return (
-                        <div 
-                          key={card.id}
-                          onClick={() => setFlashcardFlipped(prev => ({ ...prev, [card.id]: !prev[card.id] }))}
-                          className="aspect-video border border-stone-200/80 rounded-2xl bg-white flex flex-col items-center justify-center text-center p-6 cursor-pointer select-none relative overflow-hidden shadow-sm"
-                        >
-                          <span className="text-[9px] font-extrabold text-stone-400 uppercase absolute top-4 block">{lang === 'ID' ? 'Ketuk kartu untuk membalik' : 'Tap card to flip'}</span>
-                          <p className="text-xs font-bold text-stone-900 leading-relaxed">
-                            {isFlipped ? card.back : card.front}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Practice Challenge Simulator with AI Coach Feedback */}
                   {practices.map((prac) => {
-                    const feedback = practiceFeedback[prac.id];
-                    const loading = isFeedbackLoading[prac.id];
+                    const answer = userPracticeAnswers[prac.id];
+                    const checklistAnswer = Array.isArray(answer) ? answer : [];
+                    const practiceResult = progress.practiceResults?.[prac.id];
                     return (
                       <div key={prac.id} className={`${getSubCardClass()} p-5 rounded-2xl border space-y-4`}>
                         <div>
-                          <span className="text-[9px] font-extrabold text-stone-400 block uppercase">{lang === 'ID' ? 'Simulasi Skenario Interaktif' : 'Interactive Scenario Roleplay'}</span>
+                          <span className="text-[9px] font-extrabold text-stone-400 block uppercase">{lang === 'ID' ? 'Skenario latihan' : 'Practice scenario'}</span>
                           <h3 className="text-sm font-bold text-stone-950 mt-1">{prac.title}</h3>
                           <p className="text-xs text-stone-500 leading-normal font-sans pt-1">{prac.scenario}</p>
                         </div>
@@ -2239,19 +1982,53 @@ export default function LearningPlayer({
                             {prac.options?.map((opt) => (
                               <button
                                 key={opt}
-                                onClick={() => setUserPracticeAnswers(prev => ({ ...prev, [prac.id]: opt }))}
-                                className={`w-full text-left p-3 border rounded-xl text-xs cursor-pointer transition-all ${userPracticeAnswers[prac.id] === opt ? 'border-brand-500 bg-brand-50 text-brand-800 font-bold' : 'border-stone-200 bg-white hover:bg-stone-50'}`}
+                                onClick={() => {
+                                  setUserPracticeAnswers(prev => ({ ...prev, [prac.id]: opt }));
+                                  setPracticeSaveStatus((previous) => ({ ...previous, [prac.id]: undefined }));
+                                }}
+                                className={`w-full text-left p-3 border rounded-xl text-xs cursor-pointer transition-all ${answer === opt ? 'border-brand-500 bg-brand-50 text-brand-800 font-bold' : 'border-stone-200 bg-white hover:bg-stone-50'}`}
                               >
                                 {opt}
                               </button>
                             ))}
                           </div>
+                        ) : prac.interactiveType === 'checklist' ? (
+                          <div className="space-y-2">
+                            {(prac.checklistItems || []).map((item) => {
+                              const checked = checklistAnswer.includes(item);
+                              return (
+                                <label key={item} className="flex items-center gap-3 p-3 border border-stone-200 bg-white rounded-xl text-xs text-stone-800 cursor-pointer hover:bg-stone-50">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => {
+                                      setUserPracticeAnswers((previous) => {
+                                        const selected = Array.isArray(previous[prac.id]) ? previous[prac.id] : [];
+                                        return {
+                                          ...previous,
+                                          [prac.id]: checked
+                                            ? selected.filter((selectedItem) => selectedItem !== item)
+                                            : [...selected, item],
+                                        };
+                                      });
+                                      setPracticeSaveStatus((statuses) => ({ ...statuses, [prac.id]: undefined }));
+                                    }}
+                                    className="h-4 w-4 accent-brand-600"
+                                  />
+                                  <span>{item}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
                         ) : (
                           <textarea
                             rows={3}
-                            value={userPracticeAnswers[prac.id] || ''}
-                            onChange={(e) => setUserPracticeAnswers(prev => ({ ...prev, [prac.id]: e.target.value }))}
-                            placeholder={lang === 'ID' ? 'Tulis jawaban Anda di sini...' : 'Draft your response here...'}
+                            value={typeof answer === 'string' ? answer : ''}
+                            onChange={(e) => {
+                              setUserPracticeAnswers(prev => ({ ...prev, [prac.id]: e.target.value }));
+                              setPracticeSaveStatus((previous) => ({ ...previous, [prac.id]: undefined }));
+                            }}
+                            placeholder={lang === 'ID' ? 'Tulis jawaban Anda di sini...' : 'Write your answer here...'}
                             className="w-full p-2.5 border border-stone-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand-500/20 bg-[#f8fbff] text-stone-800"
                           />
                         )}
@@ -2260,20 +2037,22 @@ export default function LearningPlayer({
                           onClick={() => handlePracticeSubmit(prac.id)}
                           className="px-4 py-2 bg-stone-950 hover:bg-stone-850 text-white text-xs font-bold rounded-lg cursor-pointer"
                         >
-                          Submit Draft to AI Coach
+                          {lang === 'ID' ? 'Simpan Jawaban' : 'Save Answer'}
                         </button>
 
-                        {loading && (
-                          <div className="flex items-center space-x-2 text-xs text-stone-500">
-                            <RefreshCw className="h-4 w-4 animate-spin text-brand-500" />
-                            <span>{lang === 'ID' ? 'AI Coach sedang menganalisis jawaban Anda...' : 'AI Coach is analyzing your answer...'}</span>
+                        {practiceSaveStatus[prac.id] && (
+                          <div className="p-3 rounded-xl border text-xs font-sans bg-red-50 border-red-200 text-red-700">
+                            {practiceSaveStatus[prac.id]?.message}
                           </div>
                         )}
 
-                        {feedback && (
-                          <div className="p-4 bg-emerald-500/[0.03] border border-emerald-500/20 rounded-xl space-y-1.5 text-xs font-sans">
-                            <span className="text-[9px] font-extrabold text-emerald-700 uppercase block">{lang === 'ID' ? 'Saran dari AI' : 'AI feedback suggestions'}</span>
-                            <p className="text-stone-700 leading-normal">{feedback}</p>
+                        {practiceResult?.savedAt && (
+                          <div className={`p-3 rounded-xl border text-xs font-sans ${prac.interactiveType === 'multiple-choice' && !practiceResult.isCorrect ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-500/[0.03] border-emerald-500/20 text-emerald-700'}`}>
+                            {prac.interactiveType === 'multiple-choice'
+                              ? practiceResult.isCorrect
+                                ? (lang === 'ID' ? 'Jawaban benar.' : 'Correct answer.')
+                                : (lang === 'ID' ? 'Jawaban belum tepat. Silakan coba lagi.' : 'That answer is not correct yet. Please try again.')
+                              : (lang === 'ID' ? 'Jawaban berhasil disimpan.' : 'Your answer has been saved.')}
                           </div>
                         )}
 
@@ -2284,11 +2063,28 @@ export default function LearningPlayer({
                 </div>
 
                 <div className="pt-4 border-t border-stone-200 flex justify-end">
+                  {practiceSectionStatus && (
+                    <div className="mr-auto p-3 rounded-xl border text-xs font-sans bg-red-50 border-red-200 text-red-700">
+                      {practiceSectionStatus.message}
+                    </div>
+                  )}
                   <button
-                    onClick={() => setActiveTab('reflection')}
+                    onClick={() => {
+                      if (!practiceComplete) {
+                        setPracticeSectionStatus({
+                          tone: 'error',
+                          message: lang === 'ID' ? 'Simpan semua latihan terlebih dahulu.' : 'Save and complete every practice first.',
+                        });
+                        return;
+                      }
+                      setPracticeSectionStatus(null);
+                      if (hasReflections) setActiveTab('reflection');
+                      else if (hasSummary) setActiveTab('summary');
+                      else void completeLearning();
+                    }}
                     className="px-6 py-3 bg-stone-950 hover:bg-stone-850 text-[#f8fbff] font-bold rounded-xl text-xs cursor-pointer"
                   >
-                    Go to Personal Reflection
+                    {hasReflections ? (lang === 'ID' ? 'Lanjut ke Refleksi' : 'Continue to Reflection') : hasSummary ? (lang === 'ID' ? 'Lihat Ringkasan' : 'View Summary') : (lang === 'ID' ? 'Selesaikan Pembelajaran' : 'Complete Learning')}
                   </button>
                 </div>
               </div>
@@ -2299,18 +2095,18 @@ export default function LearningPlayer({
               <div className="space-y-6 animate-in fade-in duration-300">
                 <div className="space-y-2 text-center max-w-xl mx-auto">
                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-brand-500 bg-brand-500/10 px-2.5 py-1 rounded-full">
-                    Module 6: Reflection
+                    {lang === 'ID' ? 'Modul 6: Refleksi' : 'Module 6: Reflection'}
                   </span>
                   <h2 className="text-3xl font-extrabold font-heading text-stone-950 tracking-tight leading-tight">
-                    Active Evaluations
+                    {lang === 'ID' ? 'Refleksi Pribadi' : 'Personal Reflection'}
                   </h2>
                   <p className="text-xs text-stone-500 leading-relaxed">
-                    Reflect on your previous pricing structures, and write deep answers to cement today's learning objectives.
+                    {lang === 'ID' ? 'Tuliskan refleksi Anda berdasarkan pertanyaan yang tersedia.' : 'Write your reflection using the available prompts.'}
                   </p>
                 </div>
 
                 <div className="space-y-5 max-w-2xl mx-auto">
-                  {skill.reflection?.map((ref) => (
+                  {reflections.map((ref) => (
                     <div key={ref.id} className={`${getSubCardClass()} p-5 rounded-2xl border space-y-3`}>
                       <div>
                         <h4 className="text-xs font-bold text-stone-950">{ref.question}</h4>
@@ -2319,7 +2115,10 @@ export default function LearningPlayer({
                       <textarea
                         rows={2}
                         value={userReflectionAnswers[ref.id] || ''}
-                        onChange={(e) => setUserReflectionAnswers(prev => ({ ...prev, [ref.id]: e.target.value }))}
+                        onChange={(e) => {
+                          setUserReflectionAnswers(prev => ({ ...prev, [ref.id]: e.target.value }));
+                          setReflectionSaveStatus((previous) => ({ ...previous, [ref.id]: undefined }));
+                        }}
                         placeholder={ref.helperPrompt}
                         className="w-full p-2.5 border border-stone-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand-500/20 bg-[#f8fbff] text-stone-800"
                       />
@@ -2327,18 +2126,26 @@ export default function LearningPlayer({
                         onClick={() => handleReflectionSubmit(ref.id)}
                         className="px-3.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold rounded cursor-pointer"
                       >
-                        Save Evaluation
+                        {lang === 'ID' ? 'Simpan Refleksi' : 'Save Reflection'}
                       </button>
+                      {reflectionSaveStatus[ref.id] && (
+                        <div className={`p-3 rounded-xl border text-xs font-sans ${reflectionSaveStatus[ref.id]?.tone === 'success' ? 'bg-emerald-500/[0.03] border-emerald-500/20 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                          {reflectionSaveStatus[ref.id]?.message}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
 
                 <div className="pt-4 border-t border-stone-200 flex justify-end">
                   <button
-                    onClick={() => setActiveTab('actionPlan')}
+                    onClick={() => {
+                      if (hasSummary) setActiveTab('summary');
+                      else void completeLearning();
+                    }}
                     className="px-6 py-3 bg-stone-950 hover:bg-stone-850 text-[#f8fbff] font-bold rounded-xl text-xs cursor-pointer"
                   >
-                    Build Field Action Plan
+                    {hasSummary ? (lang === 'ID' ? 'Lihat Ringkasan' : 'View Summary') : (lang === 'ID' ? 'Selesaikan Pembelajaran' : 'Complete Learning')}
                   </button>
                 </div>
               </div>
@@ -2349,10 +2156,10 @@ export default function LearningPlayer({
               <div className="space-y-6 animate-in fade-in duration-300">
                 <div className="space-y-2 text-center max-w-xl mx-auto">
                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-brand-500 bg-brand-500/10 px-2.5 py-1 rounded-full">
-                    Module 7: Field tasks
+                    {lang === 'ID' ? 'Modul 7: Rencana Tindakan' : 'Module 7: Field Tasks'}
                   </span>
                   <h2 className="text-3xl font-extrabold font-heading text-stone-950 tracking-tight leading-tight">
-                    Post-Course Action Plan
+                    {lang === 'ID' ? 'Rencana Tindakan Setelah Belajar' : 'Post-Course Action Plan'}
                   </h2>
                   <p className="text-xs text-stone-500 leading-relaxed">
                     Formulate exact operational tasks for Today, This Week, and This Month. Schedule calendar alerts for commitment.
@@ -2360,7 +2167,7 @@ export default function LearningPlayer({
                 </div>
 
                 <div className="space-y-4 max-w-2xl mx-auto font-sans">
-                  {skill.actionPlan?.map((plan, idx) => (
+                  {skill.summary.actionPlan.map((plan, idx) => (
                     <div key={idx} className={`${getSubCardClass()} p-5 rounded-2xl border flex items-start gap-4 shadow-sm`}>
                       <input 
                         type="checkbox" 
@@ -2398,7 +2205,7 @@ export default function LearningPlayer({
                     onClick={() => setActiveTab('summary')}
                     className="px-6 py-3 bg-stone-950 hover:bg-stone-850 text-[#f8fbff] font-bold rounded-xl text-xs cursor-pointer"
                   >
-                    View Executive Summary
+                    {lang === 'ID' ? 'Lihat Ringkasan Eksekutif' : 'View Executive Summary'}
                   </button>
                 </div>
               </div>
@@ -2409,13 +2216,13 @@ export default function LearningPlayer({
               <div className="space-y-6 animate-in fade-in duration-300">
                 <div className="space-y-2 text-center max-w-xl mx-auto">
                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-brand-500 bg-brand-500/10 px-2.5 py-1 rounded-full">
-                    Module 8: Summary
+                    {lang === 'ID' ? 'Modul 8: Ringkasan' : 'Module 8: Summary'}
                   </span>
                   <h2 className="text-3xl font-extrabold font-heading text-stone-950 tracking-tight leading-tight">
-                    Executive Summary
+                    {lang === 'ID' ? 'Ringkasan Eksekutif' : 'Executive Summary'}
                   </h2>
                   <p className="text-xs text-stone-500 leading-relaxed">
-                    Review mental frameworks, high-density cheat sheets, and download the executive PDF workbook.
+                    {lang === 'ID' ? 'Tinjau ringkasan akhir dari pembelajaran ini.' : 'Review the final summary for this learning experience.'}
                   </p>
                 </div>
 
@@ -2425,47 +2232,18 @@ export default function LearningPlayer({
                   <div className={`${getSubCardClass()} p-6 rounded-2xl border space-y-3`}>
                     <span className="text-[9px] font-extrabold text-brand-600 block uppercase">{lang === 'ID' ? 'Ringkasan Inti' : 'The Core Summary'}</span>
                     <p className="text-xs leading-relaxed font-serif italic text-stone-700">
-                      "{skill.summary}"
+                      "{skill.summary.content}"
                     </p>
-                  </div>
-
-                  {/* Cheat sheet key rules */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="bg-stone-900 text-stone-300 p-5 rounded-2xl border border-stone-800 space-y-2 text-xs">
-                      <span className="text-[9px] font-extrabold text-brand-400 block uppercase font-mono">{lang === 'ID' ? 'Kerangka Mental 01' : 'Mental Framework 01'}</span>
-                      <h4 className="font-bold text-white text-sm">{lang === 'ID' ? 'Dominasi pilihan pembanding' : 'Decoy dominance'}</h4>
-                      <p className="leading-relaxed text-stone-400 font-sans">{lang === 'ID' ? 'Tempatkan proposal utama di dekat pilihan pembanding agar keputusan terasa lebih mudah.' : 'Place the main proposal next to an asymmetric decoy to make the choice easier.'}</p>
-                    </div>
-
-                    <div className="bg-stone-900 text-stone-300 p-5 rounded-2xl border border-stone-800 space-y-2 text-xs">
-                      <span className="text-[9px] font-extrabold text-brand-400 block uppercase font-mono">{lang === 'ID' ? 'Kerangka Mental 02' : 'Mental Framework 02'}</span>
-                      <h4 className="font-bold text-white text-sm">{lang === 'ID' ? 'Mengurangi resistensi' : 'Reactance mitigation'}</h4>
-                      <p className="leading-relaxed text-stone-400 font-sans">{lang === 'ID' ? 'Ganti pertanyaan Ya/Tidak dengan pilihan yang jelas. Tanyakan “bagaimana”, bukan “apakah”.' : 'Replace hard Yes/No questions with clear choices. Ask “how” instead of “if”.'}</p>
-                    </div>
-                  </div>
-
-                  {/* Download Summary PDF mock */}
-                  <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 flex justify-between items-center flex-wrap gap-2 text-xs">
-                    <div>
-                      <h4 className="font-bold text-stone-900">{lang === 'ID' ? 'Paket PDF Ringkasan Eksekutif' : 'Executive Summary PDF Pack'}</h4>
-                      <span className="text-[9px] text-stone-500 font-sans">{lang === 'ID' ? 'Ringkasan visual, kartu belajar, dan rumus' : 'Visual summaries, flashcards, and formulas'}</span>
-                    </div>
-                    <button
-                      onClick={() => alert(lang === 'ID' ? 'Unduhan dimulai. Periksa folder unduhan browser.' : 'Download started. Check your browser downloads folder.')}
-                      className="px-4 py-2 bg-stone-950 hover:bg-stone-850 text-white font-bold rounded-lg cursor-pointer"
-                    >
-                      Download PDF Book
-                    </button>
                   </div>
 
                 </div>
 
                 <div className="pt-4 border-t border-stone-200 flex justify-end">
                   <button
-                    onClick={() => setActiveTab('references')}
-                    className="px-6 py-3 bg-stone-950 hover:bg-stone-850 text-[#f8fbff] font-bold rounded-xl text-xs cursor-pointer"
+                    onClick={completeLearning}
+                    className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs cursor-pointer"
                   >
-                    Read References & Citations
+                    {lang === 'ID' ? 'Selesaikan Pembelajaran' : 'Complete Learning'}
                   </button>
                 </div>
               </div>
@@ -2539,6 +2317,119 @@ export default function LearningPlayer({
                   </div>
                 </div>
 
+                {/* Rating & Testimoni Section */}
+                <div className="bg-white dark:bg-stone-850 p-6 rounded-3xl border border-stone-200 dark:border-stone-700 shadow-md max-w-md mx-auto text-left space-y-4">
+                  <div className="flex items-center space-x-2.5 pb-3 border-b border-stone-100 dark:border-stone-800">
+                    <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500">
+                      <Star className="h-5 w-5 fill-amber-500" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-extrabold text-stone-900 dark:text-white">
+                        {lang === 'ID' ? 'Beri Rating & Testimoni' : 'Rate & Review This Skill'}
+                      </h4>
+                      <p className="text-[10px] text-stone-500 dark:text-stone-400">
+                        {hasSubmittedReview
+                          ? (lang === 'ID' ? 'Anda sudah memberikan testimoni (dapat diperbarui).' : 'You have reviewed this skill (editable).')
+                          : (lang === 'ID' ? 'Bagikan pengalaman belajar Anda untuk landing page.' : 'Share your learning experience for the landing page.')}
+                      </p>
+                    </div>
+                  </div>
+
+                  {reviewSuccessMsg && (
+                    <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 p-3 rounded-xl text-xs flex items-center space-x-2 animate-in fade-in">
+                      <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+                      <span className="font-semibold">{reviewSuccessMsg}</span>
+                    </div>
+                  )}
+
+                  {reviewErrorMsg && (
+                    <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 p-3 rounded-xl text-xs flex items-center space-x-2 animate-in fade-in">
+                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                      <span className="font-semibold">{reviewErrorMsg}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleSubmitReview} className="space-y-4">
+                    {/* Star selector */}
+                    <div>
+                      <label className="block text-[10px] font-extrabold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-1.5">
+                        {lang === 'ID' ? 'Rating Bintang (1–5)' : 'Star Rating (1–5)'} <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex items-center space-x-1.5">
+                        {[1, 2, 3, 4, 5].map((star) => {
+                          const isFilled = (hoverRating || userRating) >= star;
+                          return (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => setUserRating(star)}
+                              onMouseEnter={() => setHoverRating(star)}
+                              onMouseLeave={() => setHoverRating(0)}
+                              className="p-1 text-stone-300 dark:text-stone-600 hover:scale-110 transition-all cursor-pointer focus:outline-none"
+                              aria-label={`${star} star`}
+                            >
+                              <Star
+                                className={`h-6 w-6 transition-colors ${
+                                  isFilled ? 'text-amber-400 fill-amber-400' : 'text-stone-300 dark:text-stone-600'
+                                }`}
+                              />
+                            </button>
+                          );
+                        })}
+                        <span className="ml-2 text-xs font-bold text-stone-700 dark:text-stone-300">
+                          {userRating === 5 && (lang === 'ID' ? '5.0 — Luar Biasa! ⭐' : '5.0 — Excellent! ⭐')}
+                          {userRating === 4 && (lang === 'ID' ? '4.0 — Sangat Bagus 👍' : '4.0 — Very Good 👍')}
+                          {userRating === 3 && (lang === 'ID' ? '3.0 — Cukup Baik 👌' : '3.0 — Good 👌')}
+                          {userRating === 2 && (lang === 'ID' ? '2.0 — Perlu Ditingkatkan' : '2.0 — Needs Improvement')}
+                          {userRating === 1 && (lang === 'ID' ? '1.0 — Kurang Memuaskan' : '1.0 — Poor')}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Testimonial Textarea */}
+                    <div>
+                      <label className="block text-[10px] font-extrabold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-1.5">
+                        {lang === 'ID' ? 'Tulis Testimoni Anda' : 'Write Your Testimonial'} <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        rows={3}
+                        required
+                        value={userTestimonial}
+                        onChange={(e) => setUserTestimonial(e.target.value)}
+                        placeholder={
+                          lang === 'ID'
+                            ? 'Contoh: Materinya sangat aplikatif dan terstruktur rapi. Latihan interaktifnya langsung bisa saya terapkan di tempat kerja.'
+                            : 'Example: The lessons were concise and directly actionable. The interactive practice helped me apply the framework immediately.'
+                        }
+                        className="w-full p-3 bg-stone-50 dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl text-xs text-stone-900 dark:text-white placeholder-stone-400 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all resize-none"
+                      />
+                    </div>
+
+                    {/* Submit Button */}
+                    <button
+                      type="submit"
+                      disabled={isSubmittingReview}
+                      className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-stone-950 font-bold rounded-xl text-xs transition-all shadow-md cursor-pointer flex items-center justify-center space-x-2"
+                    >
+                      {isSubmittingReview ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>{lang === 'ID' ? 'Menyimpan Testimoni...' : 'Saving Review...'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Star className="h-3.5 w-3.5 fill-current" />
+                          <span>
+                            {hasSubmittedReview
+                              ? (lang === 'ID' ? 'Perbarui Rating & Testimoni' : 'Update Review')
+                              : (lang === 'ID' ? 'Kirim Rating & Testimoni' : 'Submit Review')}
+                          </span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+
                 {/* Actions & Next steps */}
                 <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center">
                   <button
@@ -2548,12 +2439,10 @@ export default function LearningPlayer({
                     {lang === 'ID' ? 'Kembali ke Skill Saya' : 'Return to My Library'}
                   </button>
                   <button
-                    onClick={() => {
-                      alert(lang === 'ID' ? 'Tautan berhasil disalin!' : 'Sharing link copied!');
-                    }}
+                    onClick={handleDownloadCertificate}
                     className="px-5 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold rounded-xl cursor-pointer"
                   >
-                    {lang === 'ID' ? 'Bagikan Sertifikat' : 'Share Certificate'}
+                    {lang === 'ID' ? 'Download Sertifikat' : 'Download Certificate'}
                   </button>
                 </div>
 
@@ -2561,7 +2450,6 @@ export default function LearningPlayer({
             )}
 
           </div>
-
         </div>
       </main>
 
@@ -2614,13 +2502,12 @@ export default function LearningPlayer({
           </div>
 
           {/* Messages list */}
-          <div className="flex-grow overflow-y-auto p-4 space-y-3 bg-[#f8fbff]">
+          <div className="flex-1 space-y-3 overflow-y-auto bg-stone-50 p-4">
             {aiMessages.length === 0 && (
-              <div className="text-center py-10 text-stone-400 space-y-2">
-                <HelpCircle className="h-7 w-7 mx-auto text-stone-300" />
-                <p className="text-[10px] leading-relaxed max-w-xs mx-auto">
-                  {lang === 'ID' ? 'Tulis pertanyaan atau pilih pertanyaan cepat di atas untuk meminta bantuan Mentor AI.' : 'Type a question or choose a quick prompt above to get help from your AI Mentor.'}
-                </p>
+              <div className="rounded-xl border border-stone-200 bg-white p-3 text-center text-[11px] leading-relaxed text-stone-500">
+                {lang === 'ID'
+                  ? 'Pilih pertanyaan cepat atau tulis pertanyaan Anda untuk memulai percakapan.'
+                  : 'Choose a quick prompt or write your question to start the conversation.'}
               </div>
             )}
             {aiMessages.map((msg, i) => (

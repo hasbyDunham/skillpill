@@ -9,13 +9,14 @@ import {
   Mail, Phone, MapPin, Lock, Sun, Moon, Globe, Settings, User, LogOut, Play, AlertCircle, MessageSquare,
   ExternalLink, Monitor, Smartphone, Zap, Check, X, Sparkles, TrendingUp, ThumbsUp, Quote, Layers, Menu
 } from 'lucide-react';
-import { SkillPill, UserProfile } from '../types';
+import { SkillPill, SkillPillPlan, UserProfile } from '../types';
 import { Language, translations } from '../lib/translations';
 import AccountDropdown from './AccountDropdown';
 import PlanBadgeToggle from './PlanBadgeToggle';
 import ProPlanModal from './ProPlanModal';
-import { getSkillCover } from '../lib/skillImage';
 import { formatRupiah, localizeCategory, localizeDifficulty, localizeDuration } from '../lib/localization';
+import { apiFetch } from '../lib/api';
+import { getSkillCover } from '../lib/skillImage';
 
 interface PublicDirectoryProps {
   skills: SkillPill[];
@@ -28,20 +29,22 @@ interface PublicDirectoryProps {
   onChangeLang: (lang: Language) => void;
   onOpenAuth: (initialMode?: 'login' | 'register') => void;
   onOpenProfile: () => void;
-  onOpenSettings: () => void;
+
   onOpenFeedback: (toolName?: string) => void;
-  onOpenTerms: () => void;
+  onOpenTerms: (initialTab?: 'privacy' | 'terms' | 'disclaimer') => void;
   onLogout: () => void;
   currentPlan?: 'free' | 'pro';
   onTogglePlan?: (newPlan: 'free' | 'pro') => void;
+  plans?: SkillPillPlan[];
 }
 
 export default function PublicDirectory({ 
   skills, onSelectSkill, profile, onNavigateToDashboard,
   darkMode, onToggleDarkMode, lang, onChangeLang,
-  onOpenAuth, onOpenProfile, onOpenSettings, onOpenFeedback, onOpenTerms, onLogout,
-  currentPlan = 'pro',
-  onTogglePlan = () => {}
+  onOpenAuth, onOpenProfile, onOpenFeedback, onOpenTerms, onLogout,
+  currentPlan = 'free',
+  onTogglePlan = () => {},
+  plans = []
 }: PublicDirectoryProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -56,6 +59,107 @@ export default function PublicDirectory({
   // Navbar hide on scroll down logic
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const [contactSettings, setContactSettings] = useState({ email: '', phone: '', address: '' });
+  const [contactForm, setContactForm] = useState({ name: '', email: '', message: '' });
+  const [contactStatus, setContactStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    apiFetch('/api/contact-settings')
+      .then(async (response) => {
+        if (!response.ok) return;
+        const data = await response.json();
+        if (isMounted) {
+          setContactSettings({
+            email: typeof data?.email === 'string' ? data.email : '',
+            phone: typeof data?.phone === 'string' ? data.phone : '',
+            address: typeof data?.address === 'string' ? data.address : '',
+          });
+        }
+      })
+      .catch(() => undefined);
+
+    return () => { isMounted = false; };
+  }, []);
+
+  const handleContactSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setContactStatus(null);
+
+    const recipient = contactSettings.email.trim();
+    if (!recipient) {
+      setContactStatus({
+        type: 'error',
+        message: lang === 'ID' ? 'Email tujuan belum tersedia.' : 'The recipient email is not available yet.',
+      });
+      return;
+    }
+
+    const body = [
+      `Nama pengirim: ${contactForm.name}`,
+      `Email pengirim: ${contactForm.email}`,
+      '',
+      'Pesan:',
+      contactForm.message,
+    ].join('\n');
+
+    const composeUrl = new URL('https://mail.google.com/mail/');
+    composeUrl.search = new URLSearchParams({
+      view: 'cm',
+      fs: '1',
+      to: recipient,
+      su: 'Pesan Baru dari SkillPill',
+      body,
+    }).toString();
+
+    window.open(composeUrl.toString(), '_blank', 'noopener,noreferrer');
+  };
+  const staticTestimonials = [
+    {
+      id: 'static-sarah',
+      name: 'Sarah Jenkins',
+      role: lang === 'ID' ? 'Kepala Penjualan, TechCorp' : 'Head of Sales, TechCorp',
+      quote: lang === 'ID' ? 'Teknik Three-Option Close mengubah cara tim kami menyampaikan penawaran hanya dalam 30 menit.' : 'The Three-Option Close completely transformed our team sales pitch in under 30 minutes.',
+      skill: lang === 'ID' ? 'Penutupan Penjualan' : 'Closing Sales',
+      rating: 5,
+      date: '28 Agu 2026',
+    },
+    {
+      id: 'static-budi',
+      name: 'Budi Santoso',
+      role: lang === 'ID' ? 'Arsitek Perangkat Lunak Senior' : 'Senior Software Architect',
+      quote: lang === 'ID' ? 'Metode belajar visual SkillPill sangat ramah untuk profesional sibuk. Poin tindakannya langsung bisa dipakai.' : 'SkillPill’s visual learning method works perfectly for busy professionals. The action points are immediately useful.',
+      skill: lang === 'ID' ? 'Arsitektur Sistem' : 'System Architecture',
+      rating: 5,
+      date: '25 Agu 2026',
+    },
+    {
+      id: 'static-elena',
+      name: 'Elena Rostova',
+      role: lang === 'ID' ? 'Pemimpin Desainer UX' : 'Lead UX Designer',
+      quote: lang === 'ID' ? 'AI Coach memberikan analogi secara instan dan membantu mengevaluasi refleksi desain saya.' : 'The AI Coach gave me instant analogies and evaluated my design reflection.',
+      skill: lang === 'ID' ? 'Desain UI/UX' : 'UI/UX Design',
+      rating: 5,
+      date: '20 Agu 2026',
+    },
+    {
+      id: 'static-rian',
+      name: 'Rian Hidayat',
+      role: lang === 'ID' ? 'Pengusaha & Kreator' : 'Entrepreneur & Creator',
+      quote: lang === 'ID' ? 'Sangat hemat waktu. Saya mendapat solusi spesifik dalam 30 menit tanpa beban langganan.' : 'It saves so much time. I got a specific solution in 30 minutes without a subscription.',
+      skill: lang === 'ID' ? 'Strategi Pertumbuhan' : 'Growth Hacking',
+      rating: 5,
+      date: '18 Agu 2026',
+    },
+  ];
+  const testimonials = staticTestimonials;
+  const testimonialCount = testimonials.length;
+  const testimonialAverage = testimonialCount > 0
+    ? testimonials.reduce((total, item) => total + item.rating, 0) / testimonialCount
+    : 0;
+  const freePlan = plans.find((plan) => plan.key === 'free');
+  const proPlan = plans.find((plan) => plan.key === 'pro');
 
   useEffect(() => {
     const handleScroll = () => {
@@ -77,7 +181,7 @@ export default function PublicDirectory({
 
   const filteredSkills = skills.filter(skill => {
     const matchesSearch = skill.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          skill.shortDescription.toLowerCase().includes(searchTerm.toLowerCase());
+                          skill.overview.headline.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'All' || skill.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
@@ -172,6 +276,7 @@ export default function PublicDirectory({
                   <PlanBadgeToggle 
                     currentPlan={currentPlan}
                     onTogglePlan={onTogglePlan}
+                    plans={plans}
                     lang={lang}
                     darkMode={darkMode}
                   />
@@ -213,7 +318,7 @@ export default function PublicDirectory({
                     lang={lang}
                     darkMode={darkMode}
                     onOpenProfile={onOpenProfile}
-                    onOpenSettings={onOpenSettings}
+
                     onLogout={onLogout}
                   />
                 </div>
@@ -739,7 +844,7 @@ export default function PublicDirectory({
                         {skills[0]?.title || 'The Three-Option Close'}
                       </h3>
                       <p className="hidden sm:block text-xs sm:text-sm text-stone-300 max-w-2xl mt-2 leading-relaxed">
-                        {skills[0]?.shortDescription || (lang === 'ID' ? 'Pemutar belajar interaktif dengan diagram, daftar tindakan, refleksi, dan Gemini AI Coach.' : 'Interactive lesson player with diagrams, action checklists, reflection challenges, and Gemini AI Coach.')}
+                        {skills[0]?.overview.headline || (lang === 'ID' ? 'Pemutar belajar interaktif dengan artikel, audio, slide, dan flashcard.' : 'Interactive lesson player with articles, audio, slides, and flashcards.')}
                       </p>
                       
                       <div className="mt-4 flex items-center space-x-4">
@@ -828,8 +933,8 @@ export default function PublicDirectory({
 
             {/* Skill Pill Grid - ONLY 4 FEATURED SKILLS (Index 0 is 1 Free Preview in Free Mode, Index 1+ locked in Free Mode) */}
             <div className="grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 lg:gap-8">
-              {skills.slice(0, 4).map((skill, index) => {
-                const isLockedInFree = currentPlan === 'free' && index > 0;
+              {skills.slice(0, 4).map((skill) => {
+                const isLockedInFree = currentPlan === 'free' && skill.accessLevel === 'pro';
 
                 return (
                   <div 
@@ -860,7 +965,7 @@ export default function PublicDirectory({
                           <Lock className="h-3 w-3" />
                           <span className="hidden sm:inline">{lang === 'ID' ? 'Pro Terkunci' : 'Pro Locked'}</span>
                         </span>
-                      ) : index === 0 && currentPlan === 'free' ? (
+                      ) : skill.accessLevel === 'all' && currentPlan === 'free' ? (
                         <span className="absolute top-2 right-2 sm:top-3 sm:right-3 bg-emerald-500 text-white font-extrabold text-[9px] sm:text-[10px] uppercase tracking-wider p-1 sm:px-2 sm:py-1 rounded-md shadow flex items-center space-x-1">
                           <CheckCircle2 className="h-3 w-3" />
                           <span className="hidden sm:inline">{lang === 'ID' ? 'Gratis Pratinjau' : 'Free Preview'}</span>
@@ -891,11 +996,11 @@ export default function PublicDirectory({
                       </h3>
                       
                       <p className="text-xs text-stone-600 dark:text-stone-400 mt-2 line-clamp-2 leading-relaxed">
-                        {skill.shortDescription}
+                        {skill.overview.headline}
                       </p>
                       
                       <div className="mt-auto pt-4 border-t border-stone-100 dark:border-stone-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                        <span className="text-[9px] sm:text-[10px] font-semibold text-stone-500 dark:text-stone-400">{lang === 'ID' ? 'Oleh' : 'By'} {skill.author.split(',')[0]}</span>
+                        <span className="text-[9px] sm:text-[10px] font-semibold text-stone-500 dark:text-stone-400">{lang === 'ID' ? 'Oleh' : 'By'} {skill.overview.author.split(',')[0]}</span>
                         
                         {isLockedInFree ? (
                           <span className="text-xs font-extrabold text-brand-500 flex items-center space-x-1">
@@ -974,14 +1079,14 @@ export default function PublicDirectory({
               <p className="text-xs text-stone-600 dark:text-stone-400 mt-2">{t.pricingSubtitle}</p>
             </div>
 
-            {/* 3 Pricing Cards - Equal Height Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-8 md:grid-cols-3 items-stretch max-w-6xl mx-auto">
+            {/* Free and Pro Pricing Cards */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-8 items-stretch max-w-4xl mx-auto">
               
               {/* Card 1: Free Tier */}
               <div className={`p-4 sm:p-8 rounded-3xl border shadow-sm flex flex-col justify-between h-full transition-all duration-300 hover:shadow-md ${darkMode ? 'bg-stone-900 border-stone-800 text-white' : 'bg-white border-stone-200 text-stone-900'}`}>
                 <div className="flex-1 flex flex-col">
                   <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
-                    <h3 className="text-xl font-bold font-heading text-stone-900 dark:text-white">{t.freePlan}</h3>
+                    <h3 className="text-xl font-bold font-heading text-stone-900 dark:text-white">{freePlan?.name ?? t.freePlan}</h3>
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-stone-200 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
                       EXPLORER
                     </span>
@@ -989,23 +1094,17 @@ export default function PublicDirectory({
                   <p className="text-xs text-stone-500 dark:text-stone-400">{lang === 'ID' ? 'Akses katalog & pratinjau materi.' : 'Access the catalog and preview learning materials.'}</p>
                   
                   <div className="my-6">
-                    <span className="text-2xl sm:text-4xl font-extrabold font-heading text-stone-900 dark:text-white">Rp0</span>
+                    <span className="text-2xl sm:text-4xl font-extrabold font-heading text-stone-900 dark:text-white">{freePlan ? formatRupiah(freePlan.price) : '—'}</span>
                     <span className="text-xs text-stone-500 dark:text-stone-400 ml-1">/ {lang === 'ID' ? 'selamanya' : 'forever'}</span>
                   </div>
 
                   <ul className="space-y-3 text-xs text-stone-600 dark:text-stone-300 border-t border-stone-100 dark:border-stone-800 pt-6 mb-6">
-                    <li className="flex items-center space-x-2.5">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-                      <span>{lang === 'ID' ? 'Akses Katalog Publik' : 'Access the Public Catalog'}</span>
-                    </li>
-                    <li className="flex items-center space-x-2.5">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-                      <span>{lang === 'ID' ? 'Gratis 1 Pratinjau Micro Skill' : 'One Free Micro Skill Preview'}</span>
-                    </li>
-                    <li className="flex items-center space-x-2.5">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-                      <span>{lang === 'ID' ? 'Dukungan Komunitas Pembelajar' : 'Learner Community Support'}</span>
-                    </li>
+                    {(freePlan?.benefits ?? []).map((benefit) => (
+                      <li key={benefit} className="flex items-center space-x-2.5">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                        <span>{benefit}</span>
+                      </li>
+                    ))}
                   </ul>
                 </div>
 
@@ -1020,62 +1119,14 @@ export default function PublicDirectory({
                 </div>
               </div>
 
-              {/* Card 2: Single SkillPill (Most Popular) */}
+              {/* Card 2: Pro Member (Most Popular) */}
               <div className={`p-4 sm:p-8 rounded-3xl border-2 border-brand-500 shadow-xl relative flex flex-col justify-between h-full transition-all duration-300 ${darkMode ? 'bg-stone-900 text-white' : 'bg-white text-stone-900'}`}>
                 <div className="absolute -top-3.5 right-6 bg-brand-500 text-white text-[9px] font-extrabold uppercase tracking-widest px-3.5 py-1 rounded-full shadow-md">
                   {t.popular}
                 </div>
-
                 <div className="flex-1 flex flex-col">
                   <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
-                    <h3 className="text-xl font-bold font-heading text-brand-500">Single SkillPill</h3>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-brand-100 dark:bg-brand-950 text-brand-600 dark:text-brand-400">
-                      MICRO COMMERCE
-                    </span>
-                  </div>
-                  <p className="text-xs text-stone-500 dark:text-stone-400">{lang === 'ID' ? 'Beli hanya solusi yang Anda butuhkan.' : 'Buy only the solution you need.'}</p>
-                  
-                  <div className="my-6">
-                    <span className="text-2xl sm:text-4xl font-extrabold font-heading text-stone-900 dark:text-white">Rp15.000</span>
-                    <span className="text-xs text-stone-500 dark:text-stone-400 ml-1">/ {lang === 'ID' ? 'per skill pill' : 'per skill pill'}</span>
-                  </div>
-
-                  <ul className="space-y-3 text-xs text-stone-600 dark:text-stone-300 border-t border-stone-100 dark:border-stone-800 pt-6 mb-6">
-                    <li className="flex items-center space-x-2.5">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-                      <span>{lang === 'ID' ? 'Akses penuh seumur hidup' : 'Full lifetime access'}</span>
-                    </li>
-                    <li className="flex items-center space-x-2.5">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-                      <span>{lang === 'ID' ? 'Mode Baca, Kartu, & Pemutar Audio' : 'Reading, Cards, & Audio Player modes'}</span>
-                    </li>
-                    <li className="flex items-center space-x-2.5">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-                      <span>{lang === 'ID' ? 'Pendamping AI Coach Interaktif' : 'Interactive AI Coach assistant'}</span>
-                    </li>
-                    <li className="flex items-center space-x-2.5">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-                      <span>{lang === 'ID' ? 'Daftar Tindakan & Sertifikat' : 'Action Checklist & Certificate'}</span>
-                    </li>
-                  </ul>
-                </div>
-
-                {/* Bottom Aligned Button */}
-                <div className="mt-auto pt-4 w-full">
-                  <button 
-                    onClick={() => scrollToSection('directory')}
-                    className="w-full py-3.5 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-2xl text-xs transition-all shadow-md shadow-brand-500/20 text-center"
-                  >
-                    {lang === 'ID' ? 'Pilih SkillPill (Rp15.000)' : 'Choose SkillPill (Rp15,000)'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Card 3: Pro Member (Monthly Only) */}
-              <div className={`p-4 sm:p-8 rounded-3xl border shadow-sm flex flex-col justify-between h-full transition-all duration-300 hover:shadow-md ${darkMode ? 'bg-stone-900 border-stone-800 text-white' : 'bg-white border-stone-200 text-stone-900'}`}>
-                <div className="flex-1 flex flex-col">
-                  <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
-                    <h3 className="text-xl font-bold font-heading text-stone-900 dark:text-white">{t.proPlan}</h3>
+                    <h3 className="text-xl font-bold font-heading text-stone-900 dark:text-white">{proPlan?.name ?? t.proPlan}</h3>
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400">
                       {lang === 'ID' ? 'TAK TERBATAS' : 'UNLIMITED'}
                     </span>
@@ -1083,33 +1134,29 @@ export default function PublicDirectory({
                   <p className="text-xs text-stone-500 dark:text-stone-400">{lang === 'ID' ? 'Akses tak terbatas seluruh pustaka.' : 'Unlimited access to the entire library.'}</p>
                   
                   <div className="my-6">
-                    <span className="text-2xl sm:text-4xl font-extrabold font-heading text-stone-900 dark:text-white">Rp149.000</span>
+                    <span className="text-2xl sm:text-4xl font-extrabold font-heading text-stone-900 dark:text-white">{proPlan ? formatRupiah(proPlan.price) : '—'}</span>
                     <span className="text-xs text-stone-500 dark:text-stone-400 ml-1">/ {lang === 'ID' ? 'bulan' : 'month'}</span>
                   </div>
 
                   <ul className="space-y-3 text-xs text-stone-600 dark:text-stone-300 border-t border-stone-100 dark:border-stone-800 pt-6 mb-6">
-                    <li className="flex items-center space-x-2.5">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-                      <span>{lang === 'ID' ? 'Akses tak terbatas seluruh SkillPill' : 'Unlimited access to every SkillPill'}</span>
-                    </li>
-                    <li className="flex items-center space-x-2.5">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-                      <span>{lang === 'ID' ? 'AI Generator untuk membuat skill khusus' : 'AI generator for custom skills'}</span>
-                    </li>
-                    <li className="flex items-center space-x-2.5">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-                      <span>{lang === 'ID' ? 'Prioritas Dukungan Perusahaan' : 'Priority enterprise support'}</span>
-                    </li>
+                    {(proPlan?.benefits ?? []).map((benefit) => (
+                      <li key={benefit} className="flex items-center space-x-2.5">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                        <span>{benefit}</span>
+                      </li>
+                    ))}
                   </ul>
                 </div>
 
                 {/* Bottom Aligned Button */}
                 <div className="mt-auto pt-4 w-full">
                   <button 
-                    onClick={onOpenAuth}
+                    onClick={() => setIsProModalOpen(true)}
                     className="w-full py-3.5 bg-stone-900 dark:bg-stone-100 hover:opacity-90 text-white dark:text-stone-900 font-bold rounded-2xl text-xs transition-all text-center"
                   >
-                    {lang === 'ID' ? 'Daftar Pro Member' : 'Join Pro Membership'}
+                    {currentPlan === 'pro'
+                      ? (lang === 'ID' ? 'Plan Pro Aktif' : 'Pro Plan Active')
+                      : (lang === 'ID' ? 'Upgrade ke Pro' : 'Upgrade to Pro')}
                   </button>
                 </div>
               </div>
@@ -1137,53 +1184,31 @@ export default function PublicDirectory({
               {/* Rating Summary Pill */}
               <div className="mt-4 inline-flex items-center space-x-2 bg-white dark:bg-stone-850 px-4 py-1.5 rounded-full border border-stone-200 dark:border-stone-700 shadow-sm">
                 <div className="flex text-brand-400">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="h-3.5 w-3.5 fill-brand-400" />
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className={`h-3.5 w-3.5 ${
+                        testimonialAverage >= star
+                          ? 'fill-brand-400'
+                          : 'text-stone-300 dark:text-stone-700'
+                      }`}
+                    />
                   ))}
                 </div>
-                <span className="text-xs font-bold font-mono text-stone-900 dark:text-white">4.9 / 5.0</span>
-                <span className="text-[10px] text-stone-500 dark:text-stone-400">• 2,400+ {lang === 'ID' ? 'Pembelajar Terverifikasi' : 'Verified Learners'}</span>
+                <span className="text-xs font-bold font-mono text-stone-900 dark:text-white">
+                  {testimonialCount > 0 ? testimonialAverage.toFixed(1) : '—'} / 5.0
+                </span>
+                <span className="text-[10px] text-stone-500 dark:text-stone-400">
+                  • {testimonialCount} {lang === 'ID' ? 'Pembelajar Terverifikasi' : 'Verified Learners'}
+                </span>
               </div>
             </div>
 
-            {/* 4 Modern Testimonial Cards */}
+            {/* Modern Testimonial Cards */}
             <div className="grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-2 lg:grid-cols-4">
-              {[
-                { 
-                  name: 'Sarah Jenkins', 
-                  role: lang === 'ID' ? 'Kepala Penjualan, TechCorp' : 'Head of Sales, TechCorp', 
-                  quote: lang === 'ID' ? 'Teknik Three-Option Close mengubah cara tim kami menyampaikan penawaran hanya dalam 30 menit.' : 'The Three-Option Close completely transformed our team sales pitch in under 30 minutes.', 
-                  skill: lang === 'ID' ? 'Penutupan Penjualan' : 'Closing Sales',
-                  rating: 5, 
-                  photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200' 
-                },
-                { 
-                  name: 'Budi Santoso', 
-                  role: lang === 'ID' ? 'Arsitek Perangkat Lunak Senior' : 'Senior Software Architect', 
-                  quote: lang === 'ID' ? 'Metode belajar visual SkillPill sangat ramah untuk profesional sibuk. Poin tindakannya langsung bisa dipakai.' : 'SkillPill’s visual learning method works perfectly for busy professionals. The action points are immediately useful.', 
-                  skill: lang === 'ID' ? 'Arsitektur Sistem' : 'System Architecture',
-                  rating: 5, 
-                  photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' 
-                },
-                { 
-                  name: 'Elena Rostova', 
-                  role: lang === 'ID' ? 'Pemimpin Desainer UX' : 'Lead UX Designer', 
-                  quote: lang === 'ID' ? 'AI Coach memberikan analogi secara instan dan membantu mengevaluasi refleksi desain saya.' : 'The AI Coach gave me instant analogies and evaluated my design reflection.', 
-                  skill: lang === 'ID' ? 'Desain UI/UX' : 'UI/UX Design',
-                  rating: 5, 
-                  photo: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200' 
-                },
-                { 
-                  name: 'Rian Hidayat', 
-                  role: lang === 'ID' ? 'Pengusaha & Kreator' : 'Entrepreneur & Creator', 
-                  quote: lang === 'ID' ? 'Sangat hemat waktu. Saya mendapat solusi spesifik dalam 30 menit tanpa beban langganan.' : 'It saves so much time. I got a specific solution in 30 minutes without a subscription.', 
-                  skill: lang === 'ID' ? 'Strategi Pertumbuhan' : 'Growth Hacking',
-                  rating: 5, 
-                  photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200' 
-                }
-              ].map((test, idx) => (
+              {testimonials.map((test, idx) => (
                 <div 
-                  key={idx} 
+                  key={test.id || idx} 
                   className={`relative p-4 sm:p-6 rounded-3xl border shadow-sm flex flex-col justify-between transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${
                     darkMode ? 'bg-stone-900 border-stone-800 text-white hover:border-brand-500/40' : 'bg-white border-stone-200 text-stone-900 hover:border-brand-500/40'
                   }`}
@@ -1193,37 +1218,35 @@ export default function PublicDirectory({
                   <div>
                     {/* Top Row: Stars & Skill Pill Tag */}
                     <div className="flex items-center justify-between mb-4">
-                      <div className="flex text-brand-400">
+                      <div className="flex text-amber-400">
                         {Array.from({ length: test.rating }).map((_, i) => (
-                          <Star key={i} className="h-3.5 w-3.5 fill-brand-400" />
+                          <Star key={i} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
                         ))}
                       </div>
-                      <span className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20">
+                      <span className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20 max-w-[120px] truncate" title={test.skill}>
                         #{test.skill}
                       </span>
                     </div>
 
-                    <p className="text-xs leading-relaxed text-stone-700 dark:text-stone-300 italic">
+                    <p className="line-clamp-2 text-xs leading-relaxed text-stone-700 dark:text-stone-300 italic">
                       "{test.quote}"
                     </p>
                   </div>
 
                   {/* Bottom User Bar */}
-                  <div className="mt-6 pt-4 border-t border-stone-100 dark:border-stone-800 flex items-center space-x-3">
-                    <div className="relative">
-                      <img 
-                        src={test.photo} 
-                        alt={test.name} 
-                        className="w-10 h-10 rounded-full object-cover border-2 border-brand-500 shadow-sm" 
-                      />
-                      <span className="absolute -bottom-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5">
-                        <Check className="h-2.5 w-2.5 stroke-[3]" />
-                      </span>
+                  <div className="mt-6 pt-4 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between">
+                    <div className="flex items-center space-x-2.5 overflow-hidden">
+                      <div className="h-9 w-9 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 font-extrabold flex items-center justify-center text-xs flex-shrink-0 border border-brand-500/30">
+                        {test.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="overflow-hidden">
+                        <h4 className="text-xs font-bold font-heading truncate text-stone-900 dark:text-white">{test.name}</h4>
+                        <p className="text-[10px] text-stone-500 dark:text-stone-400 truncate">{test.role}</p>
+                      </div>
                     </div>
-                    <div className="overflow-hidden">
-                      <h4 className="text-xs font-bold font-heading truncate text-stone-900 dark:text-white">{test.name}</h4>
-                      <p className="text-[10px] text-stone-500 dark:text-stone-400 truncate">{test.role}</p>
-                    </div>
+                    {test.date && (
+                      <span className="text-[9px] text-stone-400 flex-shrink-0 ml-1 font-mono">{test.date}</span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1291,27 +1314,29 @@ export default function PublicDirectory({
                   </p>
 
                   <div className="mt-8 space-y-4 text-xs text-stone-600 dark:text-stone-300">
-                    <div className="flex items-center space-x-3">
+                    {contactSettings.email && <div className="flex items-center space-x-3">
                       <Mail className="h-4 w-4 text-brand-500" />
-                      <span>support@optibis.id</span>
-                    </div>
-                    <div className="flex items-center space-x-3">
+                      <span>{contactSettings.email}</span>
+                    </div>}
+                    {contactSettings.phone && <div className="flex items-center space-x-3">
                       <Phone className="h-4 w-4 text-brand-500" />
-                      <span>+62 812-3456-7890</span>
-                    </div>
-                    <div className="flex items-center space-x-3">
+                      <span>{contactSettings.phone}</span>
+                    </div>}
+                    {contactSettings.address && <div className="flex items-center space-x-3">
                       <MapPin className="h-4 w-4 text-brand-500" />
-                      <span>Jakarta & San Francisco, Optibis Hub</span>
-                    </div>
+                      <span>{contactSettings.address}</span>
+                    </div>}
                   </div>
                 </div>
 
-                <form onSubmit={(e) => { e.preventDefault(); alert(lang === 'ID' ? 'Pesan berhasil dikirim!' : 'Message sent successfully!'); }} className="space-y-4">
+                <form onSubmit={handleContactSubmit} className="space-y-4">
                   <div>
                     <label className="block text-[10px] font-extrabold uppercase tracking-wider text-stone-600 dark:text-stone-400 mb-1">{t.nameLabel}</label>
                     <input 
                       type="text" 
                       required
+                      value={contactForm.name}
+                      onChange={(event) => setContactForm((current) => ({ ...current, name: event.target.value }))}
                       placeholder={lang === 'ID' ? 'Budi Santoso' : 'John Doe'}
                       className={`w-full px-4 py-2.5 border rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-brand-500/20 ${darkMode ? 'bg-stone-800 border-stone-700 text-white placeholder-stone-500' : 'bg-stone-50 border-stone-300 text-stone-900 placeholder-stone-400'}`}
                     />
@@ -1321,6 +1346,8 @@ export default function PublicDirectory({
                     <input 
                       type="email" 
                       required
+                      value={contactForm.email}
+                      onChange={(event) => setContactForm((current) => ({ ...current, email: event.target.value }))}
                       placeholder="alex@gmail.com"
                       className={`w-full px-4 py-2.5 border rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-brand-500/20 ${darkMode ? 'bg-stone-800 border-stone-700 text-white placeholder-stone-500' : 'bg-stone-50 border-stone-300 text-stone-900 placeholder-stone-400'}`}
                     />
@@ -1330,10 +1357,17 @@ export default function PublicDirectory({
                     <textarea 
                       rows={3}
                       required
+                      value={contactForm.message}
+                      onChange={(event) => setContactForm((current) => ({ ...current, message: event.target.value }))}
                       placeholder={lang === 'ID' ? 'Tuliskan pertanyaan atau kebutuhan tim Anda...' : 'Write your inquiry or team needs...'}
                       className={`w-full px-4 py-2.5 border rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-brand-500/20 ${darkMode ? 'bg-stone-800 border-stone-700 text-white placeholder-stone-500' : 'bg-stone-50 border-stone-300 text-stone-900 placeholder-stone-400'}`}
                     />
                   </div>
+                  {contactStatus && (
+                    <p className={`rounded-xl border px-3 py-2 text-xs ${contactStatus.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300'}`}>
+                      {contactStatus.message}
+                    </p>
+                  )}
                   <button 
                     type="submit"
                     className="w-full py-3 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-brand-500/10"
@@ -1485,24 +1519,24 @@ export default function PublicDirectory({
                 </h4>
                 <ul className="space-y-2.5">
                   <li>
-                    <button onClick={onOpenTerms} className="hover:text-brand-400 transition-colors">
-                      {t.disclaimer} & {t.terms}
+                    <button onClick={() => onOpenTerms('terms')} className="hover:text-brand-400 transition-colors">
+                      {t.terms}
                     </button>
                   </li>
                   <li>
-                    <button onClick={onOpenTerms} className="hover:text-brand-400 transition-colors">
+                    <button onClick={() => onOpenTerms('privacy')} className="hover:text-brand-400 transition-colors">
                       {t.privacy}
                     </button>
                   </li>
                   <li>
-                    <button onClick={() => onOpenFeedback('Landing Page Tool')} className="hover:text-brand-400 transition-colors flex items-center space-x-1.5">
+                    <button onClick={onOpenFeedback} className="hover:text-brand-400 transition-colors flex items-center space-x-1.5">
                       <MessageSquare className="h-3.5 w-3.5 text-brand-500" />
                       <span>{t.giveFeedback}</span>
                     </button>
                   </li>
                   <li>
                     <button onClick={onNavigateToDashboard} className="hover:text-brand-400 transition-colors">
-                      {t.goToApp}
+                      {lang === 'ID' ? 'Portal Pembelajar' : 'Learner Portal'}
                     </button>
                   </li>
                 </ul>
@@ -1514,18 +1548,18 @@ export default function PublicDirectory({
                   {lang === 'ID' ? 'Hubungi Kami' : 'Contact Us'}
                 </h4>
                 <div className="space-y-2.5 text-stone-400">
-                  <p className="flex items-center space-x-2">
+                  {contactSettings.email && <p className="flex items-center space-x-2">
                     <Mail className="h-3.5 w-3.5 text-brand-500" />
-                    <span>support@optibis.id</span>
-                  </p>
-                  <p className="flex items-center space-x-2">
+                    <span>{contactSettings.email}</span>
+                  </p>}
+                  {contactSettings.phone && <p className="flex items-center space-x-2">
                     <Phone className="h-3.5 w-3.5 text-brand-500" />
-                    <span>+62 812-3456-7890</span>
-                  </p>
-                  <p className="flex items-center space-x-2">
+                    <span>{contactSettings.phone}</span>
+                  </p>}
+                  {contactSettings.address && <p className="flex items-center space-x-2">
                     <MapPin className="h-3.5 w-3.5 text-brand-500" />
-                    <span>Jakarta & San Francisco</span>
-                  </p>
+                    <span>{contactSettings.address}</span>
+                  </p>}
                 </div>
               </div>
 
@@ -1570,6 +1604,7 @@ export default function PublicDirectory({
         lang={lang}
         currentPlan={currentPlan}
         onTogglePlan={onTogglePlan}
+        plans={plans}
       />
     </div>
   );

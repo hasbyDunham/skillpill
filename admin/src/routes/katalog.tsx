@@ -1,9 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { BookOpen, Clock3, Eye, PackageOpen, Pencil, Trash2 } from "lucide-react";
+import { AlertTriangle, BookOpen, Clock3, Eye, PackageOpen, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminShell } from "@/components/admin-shell";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { rupiah, type SkillLabel } from "@/lib/skillpill-data";
 import { useSkillpill } from "@/lib/skillpill-store";
@@ -12,7 +20,7 @@ export const Route = createFileRoute("/katalog")({
   head: () => ({
     meta: [
       { title: "Katalog Skill — SkillPill Admin" },
-      { name: "description", content: "Kelola katalog SkillPill yang tampil pada frontend." },
+      { name: "description", content: "Kelola katalog SkillPill yang tampil untuk pembelajar." },
     ],
   }),
   component: KatalogPage,
@@ -28,17 +36,23 @@ function labelClass(label: SkillLabel) {
 function KatalogPage() {
   const { skills, deleteSkill } = useSkillpill();
   const [query, setQuery] = useState("");
+  const [skillToDelete, setSkillToDelete] = useState<{ id: string; title: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const filtered = skills.filter((skill) =>
     `${skill.title} ${skill.category} ${skill.label}`.toLowerCase().includes(query.toLowerCase()),
   );
 
-  async function removeSkill(id: string, title: string) {
-    if (!window.confirm(`Hapus skill “${title}”? Data ini tidak dapat dipulihkan.`)) return;
+  async function removeSkill() {
+    if (!skillToDelete) return;
+    setIsDeleting(true);
     try {
-      await deleteSkill(id);
-      toast.success(`“${title}” dihapus.`);
+      await deleteSkill(skillToDelete.id);
+      toast.success(`“${skillToDelete.title}” berhasil dihapus.`);
+      setSkillToDelete(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Gagal menghapus skill.");
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -46,7 +60,7 @@ function KatalogPage() {
     <AdminShell
       eyebrow="(02) Katalog"
       title="Katalog Skill"
-      description="Lihat dan kelola seluruh produk belajar yang tampil pada frontend SkillPill."
+      description="Lihat dan kelola seluruh produk belajar yang tersedia untuk pembelajar."
       action={
         <div className="flex flex-wrap items-center gap-2">
           <Input
@@ -75,7 +89,7 @@ function KatalogPage() {
 
             <div className="flex flex-1 flex-col p-5">
               <Link to="/katalog/$skillId" params={{ skillId: skill.id }} className="line-clamp-2 min-h-11 text-lg font-semibold leading-snug transition-colors hover:text-primary">{skill.title}</Link>
-              <p className="mt-2 line-clamp-2 min-h-9 text-xs leading-relaxed text-muted-foreground">{skill.landingHeadline}</p>
+              <p className="mt-2 line-clamp-2 min-h-9 text-xs leading-relaxed text-muted-foreground">{skill.overview.headline}</p>
               <div className="mt-4 rounded-xl border border-border bg-surface-2/70 p-3">
                 <span className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground"><PackageOpen className="size-3 text-primary" /> Format belajar</span>
                 <p className="mt-1 line-clamp-1 text-xs font-medium">{skill.digitalContent || "Belum diatur"}</p>
@@ -87,7 +101,7 @@ function KatalogPage() {
               <div className="mt-5 grid grid-cols-[1fr_1fr_auto] gap-2">
                 <Button asChild variant="secondary" size="sm"><Link to="/katalog/$skillId" params={{ skillId: skill.id }}><Eye /> Detail</Link></Button>
                 <Button asChild variant="secondary" size="sm"><Link to="/katalog/$skillId/edit" params={{ skillId: skill.id }}><Pencil /> Edit</Link></Button>
-                <Button variant="ghost" size="sm" className="px-2.5 text-destructive hover:bg-destructive/10" onClick={() => void removeSkill(skill.id, skill.title)} aria-label={`Hapus ${skill.title}`}><Trash2 /></Button>
+                <Button variant="ghost" size="sm" className="px-2.5 text-destructive hover:bg-destructive/10" onClick={() => setSkillToDelete({ id: skill.id, title: skill.title })} aria-label={`Hapus ${skill.title}`}><Trash2 /></Button>
               </div>
             </div>
           </article>
@@ -96,6 +110,28 @@ function KatalogPage() {
           <p className="panel p-8 text-sm text-muted-foreground sm:col-span-2 xl:col-span-3">Tidak ada skill yang cocok dengan pencarian.</p>
         )}
       </div>
+      <AlertDialog open={Boolean(skillToDelete)} onOpenChange={(open) => { if (!open && !isDeleting) setSkillToDelete(null); }}>
+        <AlertDialogContent className="max-w-md rounded-2xl border-destructive/20 bg-surface p-0 shadow-2xl">
+          <div className="p-6 sm:p-7">
+            <div className="mb-5 grid size-11 place-items-center rounded-2xl bg-destructive/10 text-destructive">
+              <AlertTriangle className="size-5" />
+            </div>
+            <AlertDialogHeader className="text-left">
+              <AlertDialogTitle className="font-display text-xl font-bold">Hapus Skill?</AlertDialogTitle>
+              <AlertDialogDescription className="mt-2 text-sm leading-relaxed">
+                Skill <span className="font-semibold text-foreground">“{skillToDelete?.title}”</span> akan dihapus dari katalog. Tindakan ini tidak dapat dipulihkan.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+          </div>
+          <AlertDialogFooter className="border-t border-border bg-surface-2/60 px-6 py-4 sm:px-7">
+            <Button type="button" variant="outline" disabled={isDeleting} onClick={() => setSkillToDelete(null)}>Batal</Button>
+            <Button type="button" variant="destructive" disabled={isDeleting} onClick={() => void removeSkill()}>
+              <Trash2 className="mr-2 size-4" />
+              {isDeleting ? "Menghapus..." : "Hapus Skill"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminShell>
   );
 }

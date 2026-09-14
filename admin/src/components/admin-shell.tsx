@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { BookOpen, LayoutDashboard, LogOut, Moon, ShieldCheck, Sun, Trophy, Users } from "lucide-react";
+import { BookOpen, CreditCard, LayoutDashboard, LogOut, Mail, MessageSquare, Moon, ShieldCheck, Star, Sun, Trophy, Users } from "lucide-react";
 import { useSkillpill } from "@/lib/skillpill-store";
 import { useTheme } from "@/components/theme-provider";
 import { useNavigate } from "@tanstack/react-router";
@@ -11,6 +11,10 @@ const nav = [
   { to: "/katalog", label: "Katalog Skill", code: "02", icon: BookOpen },
   { to: "/user", label: "List User", code: "03", icon: Users },
   { to: "/leaderboard", label: "Leaderboard", code: "04", icon: Trophy },
+  { to: "/testimoni", label: "Rating & Testimoni", code: "05", icon: Star },
+  { to: "/plan", label: "Manage Plan", code: "06", icon: CreditCard },
+  { to: "/contact", label: "Hubungi Kami", code: "07", icon: Mail },
+  { to: "/feedback", label: "Masukan Platform", code: "08", icon: MessageSquare },
 ] as const;
 
 export function AdminShell({
@@ -38,7 +42,7 @@ export function AdminShell({
     .toUpperCase();
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen overflow-x-hidden">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col overflow-y-auto border-r border-sidebar-border bg-gradient-to-b from-sidebar via-sidebar to-surface-2/80 px-4 py-5 lg:flex">
         <div className="flex items-center gap-3 rounded-2xl border border-sidebar-border/80 bg-surface/70 px-3 py-3 shadow-sm">
           <img src={logoUrl} alt="SkillPill" className="size-11 object-contain" />
@@ -94,18 +98,18 @@ export function AdminShell({
 
       <div className="min-w-0 lg:pl-72">
         <header className="sticky top-0 z-20 border-b border-border bg-surface/85 backdrop-blur">
-          <div className="flex flex-wrap items-end justify-between gap-4 px-6 py-6 lg:px-10">
-            <div>
+          <div className="flex flex-col gap-4 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:px-6 sm:py-6 lg:px-10">
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1 font-sans text-[9px] font-bold uppercase tracking-[0.18em] text-primary">
                   <ShieldCheck className="size-3" /> Admin Portal
                 </span>
                 <p className="font-sans font-bold text-[10px] uppercase tracking-[0.22em] text-muted-foreground">{eyebrow}</p>
               </div>
-              <h1 className="mt-2 text-3xl font-bold">{title}</h1>
+              <h1 className="mt-2 break-words text-2xl font-bold sm:text-3xl">{title}</h1>
               <p className="mt-1 max-w-xl text-sm text-muted-foreground">{description}</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2 sm:w-auto">
               <button
                 type="button"
                 onClick={toggleTheme}
@@ -115,10 +119,10 @@ export function AdminShell({
               >
                 {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
               </button>
-              {action}
+              <div className="min-w-0 flex-1 sm:flex-none">{action}</div>
             </div>
           </div>
-          <nav className="flex gap-1 overflow-x-auto border-t border-border px-4 py-2 lg:hidden">
+          <nav className="flex gap-1 overflow-x-auto border-t border-border px-3 py-2 lg:hidden">
             {nav.map((item) => (
               <Link
                 key={item.to}
@@ -132,7 +136,7 @@ export function AdminShell({
           </nav>
         </header>
 
-        <main className="px-6 py-8 lg:px-10">{children}</main>
+        <main className="min-w-0 px-4 py-5 sm:px-6 sm:py-8 lg:px-10">{children}</main>
       </div>
     </div>
   );

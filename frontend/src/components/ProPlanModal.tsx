@@ -4,9 +4,11 @@
  */
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X, Check, ShieldAlert, Sparkles, Crown, Zap, Lock, CheckCircle2, ArrowRight } from 'lucide-react';
 import { Language } from '../lib/translations';
-import { UserProfile } from '../types';
+import { SkillPillPlan } from '../types';
+import { formatRupiah } from '../lib/localization';
 
 interface ProPlanModalProps {
   isOpen: boolean;
@@ -14,6 +16,7 @@ interface ProPlanModalProps {
   lang: Language;
   currentPlan: 'free' | 'pro';
   onTogglePlan: (newPlan: 'free' | 'pro') => void;
+  plans?: SkillPillPlan[];
 }
 
 export default function ProPlanModal({
@@ -21,15 +24,18 @@ export default function ProPlanModal({
   onClose,
   lang,
   currentPlan,
-  onTogglePlan
+  onTogglePlan,
+  plans = []
 }: ProPlanModalProps) {
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
   const isPro = currentPlan === 'pro';
+  const freePlan = plans.find((plan) => plan.key === 'free');
+  const proPlan = plans.find((plan) => plan.key === 'pro');
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-stone-950/70 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-t-3xl sm:rounded-3xl max-w-2xl max-h-[92dvh] w-full p-5 sm:p-8 shadow-2xl relative overflow-y-auto text-stone-900 dark:text-stone-100">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-stone-950/70 p-3 backdrop-blur-md animate-in fade-in duration-200 sm:p-6">
+      <div className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-3xl border border-stone-200 bg-white p-5 text-stone-900 shadow-2xl dark:border-stone-800 dark:bg-stone-900 dark:text-stone-100 sm:max-h-[calc(100dvh-3rem)] sm:p-8 relative">
         
         {/* Background Accent Gradient */}
         <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -86,7 +92,7 @@ export default function ProPlanModal({
             <div>
               <div className="flex justify-between items-center mb-3">
                 <span className="text-xs font-extrabold uppercase tracking-widest text-stone-500">
-                  {lang === 'ID' ? 'Paket Gratis' : 'Free Plan'}
+                  {freePlan?.name ?? (lang === 'ID' ? 'Paket Gratis' : 'Free Plan')}
                 </span>
                 {!isPro && (
                   <span className="text-[10px] font-bold bg-brand-500 text-white px-2 py-0.5 rounded-full">
@@ -95,59 +101,22 @@ export default function ProPlanModal({
                 )}
               </div>
               <div className="text-2xl font-black mb-1 font-heading">
-                Rp 0 <span className="text-xs font-normal text-stone-500">/ {lang === 'ID' ? 'selamanya' : 'forever'}</span>
+                {freePlan ? formatRupiah(freePlan.price) : '—'} <span className="text-xs font-normal text-stone-500">/ {lang === 'ID' ? 'selamanya' : 'forever'}</span>
               </div>
               <p className="text-[11px] text-stone-500 mb-4">
                 {lang === 'ID' ? 'Akses pratinjau dasar untuk pembelajar baru.' : 'Basic preview access for new learners.'}
               </p>
 
               <div className="space-y-2.5 text-xs">
-                <div className="flex items-start space-x-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-stone-700 dark:text-stone-300 font-medium">
-                    1. {lang === 'ID' ? 'Akses Katalog Publik' : 'Access the Public Catalog'}
-                  </span>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-stone-700 dark:text-stone-300 font-medium">
-                    2. {lang === 'ID' ? 'Gratis 1 Pratinjau Micro Skill' : 'One Free Micro Skill Preview'}
-                  </span>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-stone-700 dark:text-stone-300 font-medium">
-                    3. {lang === 'ID' ? 'Dukungan Komunitas Pembelajar' : 'Learner Community Support'}
-                  </span>
-                </div>
-
-                {/* Locked in Free */}
-                <div className="flex items-start space-x-2 opacity-50">
-                  <Lock className="h-4 w-4 text-stone-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-stone-500 line-through">
-                    {lang === 'ID' ? 'Akses tak terbatas seluruh SkillPill' : 'Unlimited access to every SkillPill'}
-                  </span>
-                </div>
-                <div className="flex items-start space-x-2 opacity-50">
-                  <Lock className="h-4 w-4 text-stone-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-stone-500 line-through">
-                    {lang === 'ID' ? 'AI Generator untuk membuat skill khusus' : 'AI generator for custom skills'}
-                  </span>
-                </div>
+                {(freePlan?.benefits ?? []).map((benefit, index) => (
+                  <div key={benefit} className="flex items-start space-x-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                    <span className="text-stone-700 dark:text-stone-300 font-medium">{index + 1}. {benefit}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {isPro && (
-              <button
-                onClick={() => {
-                  onTogglePlan('free');
-                  onClose();
-                }}
-                className="mt-6 w-full py-2.5 px-4 border border-stone-300 dark:border-stone-700 hover:bg-stone-200 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold rounded-xl text-xs transition-all"
-              >
-                {lang === 'ID' ? 'Beralih ke Gratis' : 'Switch to Free'}
-              </button>
-            )}
           </div>
 
           {/* PRO PLAN CARD */}
@@ -160,7 +129,7 @@ export default function ProPlanModal({
               <div className="flex justify-between items-center mb-3">
                 <span className="text-xs font-extrabold uppercase tracking-widest text-brand-500 flex items-center space-x-1">
                   <Sparkles className="h-3.5 w-3.5" />
-                  <span>{lang === 'ID' ? 'Paket Pro' : 'Pro Plan'}</span>
+                  <span>{proPlan?.name ?? (lang === 'ID' ? 'Paket Pro' : 'Pro Plan')}</span>
                 </span>
                 {isPro ? (
                   <span className="text-[10px] font-bold bg-emerald-500 text-white px-2 py-0.5 rounded-full">
@@ -174,39 +143,19 @@ export default function ProPlanModal({
               </div>
 
               <div className="text-2xl font-black mb-1 font-heading text-brand-500">
-                PRO <span className="text-xs font-normal text-stone-500">/ {lang === 'ID' ? 'Akses Penuh' : 'Full Access'}</span>
+                {proPlan ? formatRupiah(proPlan.price) : '—'} <span className="text-xs font-normal text-stone-500">/ {lang === 'ID' ? '30 hari' : '30 days'}</span>
               </div>
               <p className="text-[11px] text-stone-500 mb-4">
-                {lang === 'ID' ? 'Akses tak terbatas seluruh platform & generator AI.' : 'Unlimited access to all skills & AI tools.'}
+                {lang === 'ID' ? 'Akses Pro aktif selama 30 hari setelah pembayaran berhasil.' : 'Pro access is active for 30 days after payment succeeds.'}
               </p>
 
               <div className="space-y-2.5 text-xs">
-                <div className="flex items-start space-x-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-stone-800 dark:text-stone-200 font-bold">
-                    1. {lang === 'ID' ? 'Akses tak terbatas seluruh SkillPill' : 'Unlimited access to every SkillPill'}
-                  </span>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-stone-800 dark:text-stone-200 font-bold">
-                    2. {lang === 'ID' ? 'AI Generator untuk membuat skill khusus' : 'AI generator for custom skills'}
-                  </span>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-stone-800 dark:text-stone-200 font-bold">
-                    3. {lang === 'ID' ? 'Prioritas Dukungan Perusahaan' : 'Priority enterprise support'}
-                  </span>
-                </div>
-                <div className="flex items-start space-x-2 text-stone-500">
-                  <CheckCircle2 className="h-4 w-4 text-stone-400 flex-shrink-0 mt-0.5" />
-                  <span>{lang === 'ID' ? 'Akses Katalog Publik' : 'Access the Public Catalog'}</span>
-                </div>
-                <div className="flex items-start space-x-2 text-stone-500">
-                  <CheckCircle2 className="h-4 w-4 text-stone-400 flex-shrink-0 mt-0.5" />
-                  <span>{lang === 'ID' ? 'Dukungan Komunitas Pembelajar' : 'Learner Community Support'}</span>
-                </div>
+                {(proPlan?.benefits ?? []).map((benefit, index) => (
+                  <div key={benefit} className="flex items-start space-x-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                    <span className="text-stone-800 dark:text-stone-200 font-bold">{index + 1}. {benefit}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -216,10 +165,11 @@ export default function ProPlanModal({
                   onTogglePlan('pro');
                   onClose();
                 }}
+                disabled={!proPlan}
                 className="mt-6 w-full py-2.5 px-4 bg-brand-500 hover:bg-brand-600 text-white font-extrabold rounded-xl text-xs transition-all shadow-md flex items-center justify-center space-x-1.5"
               >
                 <Zap className="h-4 w-4 fill-stone-950" />
-                <span>{lang === 'ID' ? 'Aktifkan Mode Pro Sekarang' : 'Activate Pro Mode Now'}</span>
+                <span>{lang === 'ID' ? 'Lanjut ke Pembayaran Pro' : 'Continue to Pro Payment'}</span>
               </button>
             ) : (
               <div className="mt-6 text-center text-xs font-bold text-emerald-600 dark:text-emerald-400 py-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
@@ -234,12 +184,13 @@ export default function ProPlanModal({
         <div className="text-center pt-2 border-t border-stone-100 dark:border-stone-800">
           <p className="text-[10px] text-stone-400">
             {lang === 'ID'
-              ? 'Catatan: Anda dapat mengaktifkan atau menonaktifkan status Free/Pro kapan saja secara instan melalui tombol header.'
-              : 'Note: You can activate or deactivate your Free/Pro status at any time instantly via the header control.'}
+              ? 'Setelah upgrade ke Pro, Skill khusus Pro tetap dibeli secara terpisah.'
+              : 'After upgrading to Pro, Pro-only Skills are purchased separately.'}
           </p>
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

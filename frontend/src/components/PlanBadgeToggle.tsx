@@ -7,28 +7,34 @@ import React, { useState } from 'react';
 import { Crown, Zap, Sparkles, Check, Lock, ChevronDown } from 'lucide-react';
 import { Language } from '../lib/translations';
 import ProPlanModal from './ProPlanModal';
+import { SkillPillPlan } from '../types';
 
 interface PlanBadgeToggleProps {
   currentPlan?: 'free' | 'pro';
   onTogglePlan: (newPlan: 'free' | 'pro') => void;
+  onOpenPlanModal?: () => void;
   lang: Language;
   darkMode?: boolean;
+  plans?: SkillPillPlan[];
 }
 
 export default function PlanBadgeToggle({
-  currentPlan = 'pro',
+  currentPlan = 'free',
   onTogglePlan,
+  onOpenPlanModal,
   lang,
-  darkMode
+  darkMode,
+  plans = []
 }: PlanBadgeToggleProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const isPro = currentPlan === 'pro';
+  const openPlanModal = onOpenPlanModal ?? (() => setIsModalOpen(true));
 
   return (
     <>
       <div className="flex items-center space-x-1.5">
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={openPlanModal}
           className={`px-3 py-1.5 rounded-xl border text-xs font-extrabold flex items-center space-x-2 transition-all shadow-sm ${
             isPro
               ? 'bg-gradient-to-r from-brand-500/20 via-brand-500/10 to-emerald-500/20 border-brand-500/40 text-brand-800 dark:text-brand-300 hover:border-brand-500'
@@ -79,7 +85,7 @@ export default function PlanBadgeToggle({
         {/* Quick Upgrade CTA Button when Free */}
         {!isPro && (
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={openPlanModal}
             className="hidden sm:flex items-center space-x-1 px-2.5 py-1.5 bg-brand-500 hover:bg-brand-600 text-white font-bold text-[11px] rounded-xl shadow-sm transition-all"
           >
             <Zap className="h-3 w-3 fill-stone-950" />
@@ -89,13 +95,16 @@ export default function PlanBadgeToggle({
       </div>
 
       {/* Plan Details & Switch Modal */}
-      <ProPlanModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        lang={lang}
-        currentPlan={currentPlan}
-        onTogglePlan={onTogglePlan}
-      />
+      {!onOpenPlanModal && (
+        <ProPlanModal 
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          lang={lang}
+          currentPlan={currentPlan}
+          onTogglePlan={onTogglePlan}
+          plans={plans}
+        />
+      )}
     </>
   );
 }

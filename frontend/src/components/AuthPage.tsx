@@ -106,19 +106,19 @@ export default function AuthPage({
       setTimeout(() => onLoginSuccess(body.user), 500);
       return;
     } catch {
-      setError(lang === 'ID' ? 'Backend API belum dapat dihubungi.' : 'The backend API could not be reached.');
+      setError(lang === 'ID' ? 'Layanan belum dapat dihubungi. Silakan coba lagi.' : 'The service is unavailable. Please try again.');
       return;
     }
 
   };
 
   return (
-    <div className={`min-h-screen w-full flex flex-col justify-between transition-colors duration-200 ${
+    <div className={`min-h-[100dvh] w-full flex flex-col justify-between transition-colors duration-200 ${
       darkMode ? 'bg-stone-950 text-stone-100' : 'bg-slate-50 text-slate-900'
     }`}>
       
       {/* TOP HEADER BAR */}
-      <header className={`h-16 flex-shrink-0 px-2.5 sm:px-8 flex items-center justify-between gap-2 border-b z-20 ${
+      <header className={`min-h-16 flex-shrink-0 px-2.5 py-2 sm:px-8 sm:py-0 flex items-center justify-between gap-2 border-b z-20 ${
         darkMode ? 'bg-stone-900/90 border-stone-800 text-stone-100' : 'bg-white/90 border-slate-200 text-slate-900 shadow-sm'
       }`}>
         {/* Back Button */}
@@ -180,7 +180,7 @@ export default function AuthPage({
       </header>
 
       {/* MAIN CONTENT FRAME */}
-      <main className="flex-grow w-full max-w-[1600px] mx-auto px-3 sm:px-8 py-4 sm:py-8 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+      <main className="flex-grow w-full max-w-[1600px] mx-auto px-3 py-4 sm:px-8 sm:py-8 grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-12 lg:items-center">
         
         {/* LEFT COLUMN: HERO VISUAL & VALUE PROPOSITIONS (5 COLS / 6 COLS) */}
         <div className="hidden lg:flex lg:col-span-6 flex-col justify-between h-full p-8 rounded-3xl relative overflow-hidden bg-gradient-to-br from-brand-500/10 via-brand-500/5 to-brand-600/20 border border-brand-500/20 shadow-xl">
@@ -265,7 +265,7 @@ export default function AuthPage({
 
         {/* RIGHT COLUMN: MODERN AUTH FORM CARD (6 COLS) */}
         <div className="lg:col-span-6 w-full max-w-xl mx-auto flex flex-col justify-center">
-          <div className={`p-4 sm:p-8 rounded-3xl border shadow-2xl transition-all ${
+          <div className={`p-4 sm:p-8 rounded-2xl sm:rounded-3xl border shadow-2xl transition-all ${
             darkMode 
               ? 'bg-stone-900/95 border-stone-800 text-white shadow-stone-950/80' 
               : 'bg-white border-slate-200 text-slate-900 shadow-slate-200/80'
@@ -345,7 +345,7 @@ export default function AuthPage({
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder={lang === 'ID' ? 'contoh: Budi Santoso' : 'e.g. John Doe'}
-                      className="w-full pl-10 pr-4 py-2 border border-slate-200 dark:border-stone-700 bg-slate-50/50 dark:bg-stone-800/80 rounded-xl text-xs focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 focus:outline-none transition-all"
+                      className="w-full pl-10 pr-4 py-2 border border-slate-200 dark:border-stone-700 bg-slate-50/50 dark:bg-stone-800/80 rounded-xl text-base sm:text-xs focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 focus:outline-none transition-all"
                     />
                   </div>
                 </div>
@@ -365,7 +365,7 @@ export default function AuthPage({
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder={lang === 'ID' ? 'contoh: 081234567890' : 'e.g. 081234567890'}
-                      className="w-full pl-10 pr-4 py-2 border border-slate-200 dark:border-stone-700 bg-slate-50/50 dark:bg-stone-800/80 rounded-xl text-xs focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 focus:outline-none transition-all"
+                      className="w-full pl-10 pr-4 py-2 border border-slate-200 dark:border-stone-700 bg-slate-50/50 dark:bg-stone-800/80 rounded-xl text-base sm:text-xs focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 focus:outline-none transition-all"
                     />
                   </div>
                 </div>
@@ -384,7 +384,7 @@ export default function AuthPage({
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="nama@email.com"
-                    className="w-full pl-10 pr-4 py-2 border border-slate-200 dark:border-stone-700 bg-slate-50/50 dark:bg-stone-800/80 rounded-xl text-xs focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 focus:outline-none transition-all"
+                    className="w-full pl-10 pr-4 py-2 border border-slate-200 dark:border-stone-700 bg-slate-50/50 dark:bg-stone-800/80 rounded-xl text-base sm:text-xs focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 focus:outline-none transition-all"
                   />
                 </div>
               </div>
@@ -402,7 +402,7 @@ export default function AuthPage({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full pl-10 pr-10 py-2 border border-slate-200 dark:border-stone-700 bg-slate-50/50 dark:bg-stone-800/80 rounded-xl text-xs focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 focus:outline-none transition-all"
+                    className="w-full pl-10 pr-10 py-2 border border-slate-200 dark:border-stone-700 bg-slate-50/50 dark:bg-stone-800/80 rounded-xl text-base sm:text-xs focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 focus:outline-none transition-all"
                   />
                   <button
                     type="button"
@@ -429,7 +429,7 @@ export default function AuthPage({
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full pl-10 pr-10 py-2 border border-slate-200 dark:border-stone-700 bg-slate-50/50 dark:bg-stone-800/80 rounded-xl text-xs focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 focus:outline-none transition-all"
+                      className="w-full pl-10 pr-10 py-2 border border-slate-200 dark:border-stone-700 bg-slate-50/50 dark:bg-stone-800/80 rounded-xl text-base sm:text-xs focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 focus:outline-none transition-all"
                     />
                     <button
                       type="button"
@@ -511,7 +511,7 @@ export default function AuthPage({
       </main>
 
       {/* COMPACT FOOTER */}
-      <footer className={`min-h-10 flex-shrink-0 px-4 py-2 text-center text-[10px] flex items-center justify-center border-t ${
+      <footer className={`min-h-10 flex-shrink-0 px-4 py-2 text-center text-[10px] leading-relaxed flex items-center justify-center border-t ${
         darkMode ? 'bg-stone-900 border-stone-800 text-stone-500' : 'bg-white border-slate-200 text-slate-500'
       }`}>
         <span>© {new Date().getFullYear()} SkillPill. {lang === 'ID' ? 'Dibuat oleh' : 'Built by'} <a href="https://optibis.id" target="_blank" rel="noopener noreferrer" className="text-brand-500 font-bold hover:underline">Optibis</a>. {lang === 'ID' ? 'Hak cipta dilindungi.' : 'All rights reserved.'}</span>

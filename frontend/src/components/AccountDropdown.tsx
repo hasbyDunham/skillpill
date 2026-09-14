@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Settings, LogOut, ChevronDown } from 'lucide-react';
+import { User, LogOut, ChevronDown } from 'lucide-react';
 import { UserProfile } from '../types';
 import { Language } from '../lib/translations';
 
@@ -8,7 +8,7 @@ interface AccountDropdownProps {
   lang: Language;
   darkMode: boolean;
   onOpenProfile: () => void;
-  onOpenSettings: () => void;
+
   onLogout: () => void;
 }
 
@@ -17,7 +17,6 @@ export default function AccountDropdown({
   lang,
   darkMode,
   onOpenProfile,
-  onOpenSettings,
   onLogout
 }: AccountDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -96,19 +95,6 @@ export default function AccountDropdown({
             >
               <User className="h-4 w-4 text-brand-500" />
               <span>{lang === 'ID' ? 'Profil Saya' : 'My Profile'}</span>
-            </button>
-
-            {/* 2. Settings */}
-            <button
-              type="button"
-              onClick={() => {
-                setIsOpen(false);
-                onOpenSettings();
-              }}
-              className="w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-brand-500/10 hover:text-brand-500 dark:hover:bg-stone-800 transition-colors flex items-center space-x-2.5 cursor-pointer"
-            >
-              <Settings className="h-4 w-4 text-brand-500" />
-              <span>{lang === 'ID' ? 'Pengaturan' : 'Settings'}</span>
             </button>
           </div>
 

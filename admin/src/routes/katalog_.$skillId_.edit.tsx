@@ -1,4 +1,5 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { ArrowLeft } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { SkillEditorForm } from "@/components/skill-editor-form";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,7 @@ function EditSkillPage() {
   const skill = skills.find((item) => item.id === skillId);
 
   if (isLoading) {
-    return <AdminShell eyebrow="(02) Katalog / Edit" title="Edit Skill" description="Memuat data katalog…"><div className="panel p-6 text-sm text-muted-foreground">Mengambil data skill dari API.</div></AdminShell>;
+    return <AdminShell eyebrow="(02) Katalog / Edit" title="Edit Skill" description="Memuat data katalog…"><div className="panel p-6 text-sm text-muted-foreground">Menyiapkan data skill…</div></AdminShell>;
   }
 
   if (!skill) {
@@ -28,8 +29,20 @@ function EditSkillPage() {
     <AdminShell
       eyebrow="(02) Katalog / Edit"
       title={`Edit ${skill.title}`}
-      description="Perbarui data produk dan simpan perubahan langsung ke katalog frontend."
+      description="Perbarui data produk untuk katalog SkillPill."
     >
+      <div className="mb-5">
+        <Button asChild variant="ghost">
+          <Link
+            to="/katalog/$skillId"
+            params={{ skillId }}
+          >
+            <ArrowLeft />
+            Kembali ke Detail Skill
+          </Link>
+        </Button>
+      </div>
+
       <SkillEditorForm
         skill={skill}
         submitLabel="Simpan Perubahan"

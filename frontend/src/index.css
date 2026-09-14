@@ -50,6 +50,27 @@ textarea {
   min-width: 0;
 }
 
+@media (max-width: 39.999rem) {
+  /* Prevent horizontal overflow and browser zoom while filling mobile forms. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    max-width: 100%;
+  }
+
+  dialog,
+  [role="dialog"] {
+    max-width: calc(100vw - 1.5rem);
+  }
+}
+
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
 }
@@ -101,6 +122,38 @@ h1, h2, h3, h4, h5, h6 {
 
 .dark :is(.bg-brand-400, .bg-brand-500, .bg-brand-600) {
   color: #fff;
+}
+
+/* Keep every learner surface readable when dark mode is active. */
+.skillpill-learning-player.dark {
+  background-color: #020617;
+  color: #e2e8f0;
+}
+
+.skillpill-learning-player.dark :is(.bg-white, .bg-stone-50, .bg-stone-100, .bg-\[\#f8fbff\]) {
+  background-color: #0f172a !important;
+}
+
+.skillpill-learning-player.dark :is(.text-stone-950, .text-stone-900, .text-stone-800, .text-stone-700) {
+  color: #e2e8f0 !important;
+}
+
+.skillpill-learning-player.dark :is(.border-stone-200, .border-stone-250, .border-stone-300) {
+  border-color: #334155 !important;
+}
+
+.skillpill-learning-player.dark :is(input:not([type='checkbox']), textarea, select) {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+.skillpill-learning-player.dark :is(input:not([type='checkbox']), textarea, select)::placeholder {
+  color: #94a3b8;
+}
+
+.skillpill-learning-player.dark :is(.hover\:bg-stone-50:hover, .hover\:bg-stone-100:hover, .hover\:bg-stone-200:hover) {
+  background-color: #1e293b !important;
 }
 
 /* Custom smooth scrollbars and premium animations */

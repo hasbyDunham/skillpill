@@ -10,9 +10,13 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ContactRouteImport } from './routes/contact'
+import { Route as FeedbackRouteImport } from './routes/feedback'
 import { Route as KatalogRouteImport } from './routes/katalog'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as PlanRouteImport } from './routes/plan'
+import { Route as TestimoniRouteImport } from './routes/testimoni'
 import { Route as UserRouteImport } from './routes/user'
 import { Route as KatalogSkillIdRouteImport } from './routes/katalog_.$skillId'
 import { Route as KatalogNewRouteImport } from './routes/katalog_.new'
@@ -21,6 +25,16 @@ import { Route as KatalogSkillIdEditRouteImport } from './routes/katalog_.$skill
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeedbackRoute = FeedbackRouteImport.update({
+  id: '/feedback',
+  path: '/feedback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KatalogRoute = KatalogRouteImport.update({
@@ -36,6 +50,16 @@ const LeaderboardRoute = LeaderboardRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlanRoute = PlanRouteImport.update({
+  id: '/plan',
+  path: '/plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TestimoniRoute = TestimoniRouteImport.update({
+  id: '/testimoni',
+  path: '/testimoni',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UserRoute = UserRouteImport.update({
@@ -61,9 +85,13 @@ const KatalogSkillIdEditRoute = KatalogSkillIdEditRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/contact': typeof ContactRoute
+  '/feedback': typeof FeedbackRoute
   '/katalog': typeof KatalogRoute
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
+  '/plan': typeof PlanRoute
+  '/testimoni': typeof TestimoniRoute
   '/user': typeof UserRoute
   '/katalog/$skillId': typeof KatalogSkillIdRoute
   '/katalog/new': typeof KatalogNewRoute
@@ -71,9 +99,13 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/contact': typeof ContactRoute
+  '/feedback': typeof FeedbackRoute
   '/katalog': typeof KatalogRoute
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
+  '/plan': typeof PlanRoute
+  '/testimoni': typeof TestimoniRoute
   '/user': typeof UserRoute
   '/katalog/$skillId': typeof KatalogSkillIdRoute
   '/katalog/new': typeof KatalogNewRoute
@@ -82,9 +114,13 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/contact': typeof ContactRoute
+  '/feedback': typeof FeedbackRoute
   '/katalog': typeof KatalogRoute
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
+  '/plan': typeof PlanRoute
+  '/testimoni': typeof TestimoniRoute
   '/user': typeof UserRoute
   '/katalog_/$skillId': typeof KatalogSkillIdRoute
   '/katalog_/new': typeof KatalogNewRoute
@@ -94,9 +130,13 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/contact'
+    | '/feedback'
     | '/katalog'
     | '/leaderboard'
     | '/login'
+    | '/plan'
+    | '/testimoni'
     | '/user'
     | '/katalog/$skillId'
     | '/katalog/new'
@@ -104,9 +144,13 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/contact'
+    | '/feedback'
     | '/katalog'
     | '/leaderboard'
     | '/login'
+    | '/plan'
+    | '/testimoni'
     | '/user'
     | '/katalog/$skillId'
     | '/katalog/new'
@@ -114,9 +158,13 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/contact'
+    | '/feedback'
     | '/katalog'
     | '/leaderboard'
     | '/login'
+    | '/plan'
+    | '/testimoni'
     | '/user'
     | '/katalog_/$skillId'
     | '/katalog_/new'
@@ -125,9 +173,13 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ContactRoute: typeof ContactRoute
+  FeedbackRoute: typeof FeedbackRoute
   KatalogRoute: typeof KatalogRoute
   LeaderboardRoute: typeof LeaderboardRoute
   LoginRoute: typeof LoginRoute
+  PlanRoute: typeof PlanRoute
+  TestimoniRoute: typeof TestimoniRoute
   UserRoute: typeof UserRoute
   KatalogSkillIdRoute: typeof KatalogSkillIdRoute
   KatalogNewRoute: typeof KatalogNewRoute
@@ -141,6 +193,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/feedback': {
+      id: '/feedback'
+      path: '/feedback'
+      fullPath: '/feedback'
+      preLoaderRoute: typeof FeedbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/katalog': {
@@ -162,6 +228,20 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/plan': {
+      id: '/plan'
+      path: '/plan'
+      fullPath: '/plan'
+      preLoaderRoute: typeof PlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/testimoni': {
+      id: '/testimoni'
+      path: '/testimoni'
+      fullPath: '/testimoni'
+      preLoaderRoute: typeof TestimoniRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/user': {
@@ -197,9 +277,13 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ContactRoute: ContactRoute,
+  FeedbackRoute: FeedbackRoute,
   KatalogRoute: KatalogRoute,
   LeaderboardRoute: LeaderboardRoute,
   LoginRoute: LoginRoute,
+  PlanRoute: PlanRoute,
+  TestimoniRoute: TestimoniRoute,
   UserRoute: UserRoute,
   KatalogSkillIdRoute: KatalogSkillIdRoute,
   KatalogNewRoute: KatalogNewRoute,

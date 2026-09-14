@@ -57,12 +57,12 @@ export default function LearningContract({ skill, onCommit, isCommitted, lang = 
               <span>{isID ? 'Misi Hari Ini' : "Today's Mission"}</span>
             </h3>
             <p className="text-xs text-stone-700 leading-relaxed font-sans">
-              {isID ? 'Selesaikan sesi pembelajaran terpandu selama 30 menit untuk' : 'Complete the 30-minute guided learning experience for'} <span className="font-bold text-stone-900 dark:text-white">"{skill.title}"</span>. {isID ? 'Anda akan memperoleh pemahaman serta kepercayaan diri untuk menjelaskan dan menerapkan konsepnya.' : 'Finish with both the understanding and confidence to explain and apply its concepts.'}
+              {isID ? 'Pelajari materi dengan estimasi waktu' : 'Study the material with an estimated time of'} <span className="font-bold text-stone-900 dark:text-white">{skill.estimatedTime || (isID ? '30 menit' : '30 minutes')}</span> {isID ? 'untuk' : 'for'} <span className="font-bold text-stone-900 dark:text-white">"{skill.title}"</span>. {isID ? 'Ini hanya perkiraan dan tidak membatasi waktu belajar Anda.' : 'This is only an estimate and does not limit your learning time.'}
             </p>
             
             <div className="grid grid-cols-2 gap-4 pt-2 border-t border-stone-100">
               <div className="space-y-0.5">
-                <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">{isID ? 'Estimasi Durasi' : 'Estimated Duration'}</span>
+                <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">{isID ? 'Estimasi Waktu Belajar' : 'Estimated Learning Time'}</span>
                 <span className="text-xs font-semibold text-stone-900 dark:text-white flex items-center gap-1">
                   <Clock className="h-3 w-3 text-stone-500" />
                   {skill.estimatedTime || (isID ? '30 Menit' : '30 Minutes')}
@@ -94,7 +94,7 @@ export default function LearningContract({ skill, onCommit, isCommitted, lang = 
               </li>
               <li className="flex items-start gap-2">
                 <span className="h-4 w-4 rounded-full bg-brand-50 border border-brand-200 text-brand-600 flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">✓</span>
-                <span>{isID ? 'Siapkan satu situasi nyata. Anda akan berlatih melalui simulasi AI interaktif.' : 'Bring a real-world scenario to mind. You will practice through interactive AI simulations.'}</span>
+                <span>{isID ? 'Siapkan satu situasi nyata untuk digunakan saat mengerjakan latihan interaktif.' : 'Bring a real-world scenario to mind for the interactive practice exercises.'}</span>
               </li>
             </ul>
           </div>

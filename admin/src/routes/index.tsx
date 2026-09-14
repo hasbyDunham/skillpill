@@ -88,22 +88,22 @@ function DashboardPage() {
         <div className="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-primary"><ShieldCheck className="size-3.5" /> Admin Management</span>
-            <h2 className="mt-3 text-2xl font-bold sm:text-3xl">Konsol kendali ekosistem SkillPill.</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Pantau kesehatan katalog, transaksi, dan aktivitas belajar. Semua perubahan dari dashboard ini diterapkan ke data platform.</p>
+            <h2 className="mt-3 text-2xl font-bold sm:text-3xl">Ringkasan pengelolaan SkillPill.</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Pantau katalog, transaksi, dan aktivitas belajar dari satu tempat.</p>
           </div>
           <div className="rounded-2xl border border-border bg-surface/80 p-4 shadow-sm backdrop-blur">
-            <div className="flex items-center gap-2 text-primary"><Activity className="size-4" /><span className="text-[10px] font-bold uppercase tracking-[0.16em]">System status</span></div>
-            <p className="mt-2 text-sm font-semibold">API dan katalog tersinkron</p>
-            <p className="mt-1 text-xs text-muted-foreground">Data live · sesi operator aktif</p>
+            <div className="flex items-center gap-2 text-primary"><Activity className="size-4" /><span className="text-[10px] font-bold uppercase tracking-[0.16em]">Status katalog</span></div>
+            <p className="mt-2 text-sm font-semibold">Katalog siap dikelola</p>
+            <p className="mt-1 text-xs text-muted-foreground">Data terbaru tersedia</p>
           </div>
         </div>
       </section>
 
       <section className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Pengguna aktif" value={String(learners.length)} delta="LIVE" note="akun learner dari database" />
+        <Kpi label="Pengguna aktif" value={String(learners.length)} delta="LIVE" note="akun pembelajar" />
         <Kpi label="Pendapatan" value={compactRupiah(totalOmzet)} delta="LIVE" note="akumulasi transaksi paid" highlight />
-        <Kpi label="Pesanan paid" value={totalOrders.toLocaleString("id-ID")} delta="ORDER" note="transaksi dari API SkillPill" />
-        <Kpi label="SkillPills live" value={String(skills.length)} delta="READY" note="tersinkron dengan katalog" />
+        <Kpi label="Pesanan selesai" value={totalOrders.toLocaleString("id-ID")} delta="ORDER" note="transaksi berhasil" />
+        <Kpi label="SkillPill tayang" value={String(skills.length)} delta="READY" note="siap dipelajari" />
       </section>
 
       <section className="mt-4 grid gap-4 lg:grid-cols-3">
@@ -228,10 +228,10 @@ function DashboardPage() {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{learner.name}</span>
                   <span className="block font-sans font-bold text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                    {learner.pills} skill selesai
+                    {learner.completedSkills} skill selesai
                   </span>
                 </span>
-                <span className="stat-num text-sm text-primary">{learner.streak} hari</span>
+                <span className="stat-num text-sm text-primary">{learner.xp} XP</span>
               </li>
             ))}
             {leaderboard.length === 0 && <li className="text-sm text-muted-foreground">Belum ada aktivitas pembelajar.</li>}
